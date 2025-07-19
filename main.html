@@ -301,13 +301,22 @@
         const enemyBaseSize = 25; // Base size for enemies
         const playerDamagePerCollision = 20; // Damage player takes per enemy collision
 
-        // Define different enemy types with their health, size, speed, and points
+        // AI constants
+        const ZOMBIE_TARGET_RETENTION_DURATION = 1500; // ms
+        const DRAGON_EVASION_STRENGTH = 0.8; // How much the dragon tries to evade (0-1)
+        const GHOST_WAVE_AMPLITUDE = 20; // Max pixels for side-to-side movement
+        const GHOST_WAVE_FREQUENCY = 0.005; // How fast the wave oscillates (smaller is faster)
+        const BONE_DEVIL_CHARGE_DURATION = 800; // ms
+        const BONE_DEVIL_PAUSE_DURATION = 1000; // ms
+        const BONE_DEVIL_CHARGE_SPEED_MULTIPLIER = 2.5; // How much faster it charges
+
+        // Define different enemy types with their health, size, speed, points, and AI type
         const enemyTypes = [
-            { name: 'ghost', health: 3, sizeFactor: 1, speedFactor: 1, points: 10 },
-            { name: 'zombie', health: 5, sizeFactor: 1.2, speedFactor: 0.8, points: 20 }, // Slower, tankier
-            { name: 'skull', health: 2, sizeFactor: 0.8, speedFactor: 1.5, points: 5 }, // Faster, weaker
-            { name: 'boneDevil', health: 7, sizeFactor: 1.3, speedFactor: 1.1, points: 30 },
-            { name: 'boneDragon', health: 10, sizeFactor: 1.5, speedFactor: 0.7, points: 50 } // Slowest, strongest
+            { name: 'ghost', health: 3, sizeFactor: 1, speedFactor: 1, points: 10, aiType: 'ghost_wavy' }, // New AI type
+            { name: 'zombie', health: 5, sizeFactor: 1.2, speedFactor: 0.8, points: 20, aiType: 'zombie_wander' },
+            { name: 'skull', health: 2, sizeFactor: 0.8, speedFactor: 1.5, points: 5, aiType: 'direct' }, // Remains direct
+            { name: 'boneDevil', health: 7, sizeFactor: 1.3, speedFactor: 1.1, points: 30, aiType: 'bone_devil_charge' }, // New AI type
+            { name: 'boneDragon', health: 10, sizeFactor: 1.5, speedFactor: 0.7, points: 50, aiType: 'dragon_evade' }
         ];
 
         // Palette of colors for enemies
@@ -899,7 +908,7 @@
                     break;
             }
 
-            enemies.push({
+            const newEnemy = {
                 x: x,
                 y: y,
                 size: enemyBaseSize * chosenType.sizeFactor, // Apply size factor
@@ -908,6 +917,7 @@
                 health: chosenType.health,
                 type: chosenType.name, // Store the type name for drawing
                 points: chosenType.points, // Store points for scoring
+                aiType: chosenType.aiType, // Store the AI type
                 // Status effects
                 isSlowed: false,
                 slowTimer: 0,
@@ -916,7 +926,22 @@
                 burnTimer: 0,
                 burnDamagePerTick: 0,
                 lastBurnTickTime: 0
-            });
+            };
+
+            // Initialize AI-specific properties
+            if (newEnemy.aiType === 'zombie_wander') {
+                newEnemy.lastKnownPlayerX = player.x;
+                newEnemy.lastKnownPlayerY = player.y;
+                newEnemy.reacquireTargetTime = performance.now() + ZOMBIE_TARGET_RETENTION_DURATION;
+            } else if (newEnemy.aiType === 'bone_devil_charge') {
+                newEnemy.aiState = 'moving'; // Initial state
+                newEnemy.stateTimer = performance.now(); // Start timer
+            } else if (newEnemy.aiType === 'ghost_wavy') {
+                newEnemy.waveOffset = Math.random() * Math.PI * 2; // Random starting point for wave
+            }
+
+
+            enemies.push(newEnemy);
         }
 
         // Function to check for collision between two circles
@@ -1016,23 +1041,151 @@
             for (let i = enemies.length - 1; i >= 0; i--) {
                 const enemy = enemies[i];
 
-                // Apply status effects (slow, burn)
+                // Apply status effects (slow, burn) - Placeholder for now, will be implemented later
                 if (enemy.isSlowed) {
-                    // This will be handled in a later update for actual effect application
+                    // console.log(`${enemy.type} is slowed.`);
                 }
                 if (enemy.isBurning) {
-                    // This will be handled in a later update for actual effect application
+                    // console.log(`${enemy.type} is burning.`);
                 }
 
-                // Move enemy towards the player
-                const dx = player.x - enemy.x;
-                const dy = player.y - enemy.y;
-                const distance = Math.sqrt(dx * dx + dy * dy);
+                let targetX = player.x;
+                let targetY = player.y;
+                let currentEnemySpeed = enemy.speed;
 
-                if (distance > 0) {
-                    enemy.x += (dx / distance) * enemy.speed; // Use enemy's individual speed
-                    enemy.y += (dy / distance) * enemy.speed; // Use enemy's individual speed
+                // AI Logic based on enemy.aiType
+                if (enemy.aiType === 'zombie_wander') {
+                    // If target retention time is over or very close to the last known position, reacquire target
+                    if (currentTime >= enemy.reacquireTargetTime ||
+                        (Math.abs(enemy.x - enemy.lastKnownPlayerX) < enemy.speed && Math.abs(enemy.y - enemy.lastKnownPlayerY) < enemy.speed)) {
+                        enemy.lastKnownPlayerX = player.x;
+                        enemy.lastKnownPlayerY = player.y;
+                        enemy.reacquireTargetTime = currentTime + ZOMBIE_TARGET_RETENTION_DURATION;
+                    }
+                    targetX = enemy.lastKnownPlayerX;
+                    targetY = enemy.lastKnownPlayerY;
+                } else if (enemy.aiType === 'dragon_evade') {
+                    const dx_to_player = player.x - enemy.x;
+                    const dy_to_player = player.y - enemy.y;
+                    const distance_to_player = Math.sqrt(dx_to_player * dx_to_player + dy_to_player * dy_to_player);
+
+                    let move_dx = dx_to_player;
+                    let move_dy = dy_to_player;
+
+                    if (mouse.isMouseDown && distance_to_player > 0) { // If player is shooting, try to evade
+                        // Get player's aiming direction
+                        const dx_aim = reticle.x - player.x;
+                        const dy_aim = reticle.y - player.y;
+                        const aim_magnitude = Math.sqrt(dx_aim * dx_aim + dy_aim * dy_aim);
+
+                        if (aim_magnitude > 0) {
+                            const unit_dx_aim = dx_aim / aim_magnitude;
+                            const unit_dy_aim = dy_aim / aim_magnitude;
+
+                            // Perpendicular vector (one direction, can be randomly flipped for more variation)
+                            // For simplicity, we'll just use one perpendicular direction.
+                            const perp_dx = -unit_dy_aim;
+                            const perp_dy = unit_dx_aim;
+
+                            // Blend direct movement with evasion movement
+                            // Add a weighted perpendicular component to the movement towards the player
+                            // This makes it "strafe" while still moving generally towards the player
+                            move_dx = dx_to_player + perp_dx * DRAGON_EVASION_STRENGTH * enemy.size; // Scale evasion by enemy size for effect
+                            move_dy = dy_to_player + perp_dy * DRAGON_EVASION_STRENGTH * enemy.size;
+                        }
+                    }
+                    const move_magnitude = Math.sqrt(move_dx * move_dx + move_dy * move_dy);
+                    if (move_magnitude > 0) {
+                        targetX = enemy.x + (move_dx / move_magnitude) * currentEnemySpeed;
+                        targetY = enemy.y + (move_dy / move_magnitude) * currentEnemySpeed;
+                    } else {
+                        // Fallback if evasion logic results in zero movement (unlikely but safe)
+                        targetX = player.x;
+                        targetY = player.y;
+                    }
+                } else if (enemy.aiType === 'ghost_wavy') {
+                    const dx_to_player = player.x - enemy.x;
+                    const dy_to_player = player.y - enemy.y;
+                    const angle_to_player = Math.atan2(dy_to_player, dx_to_player);
+
+                    // Calculate perpendicular direction for wavy movement
+                    const perp_dx = Math.cos(angle_to_player + Math.PI / 2);
+                    const perp_dy = Math.sin(angle_to_player + Math.PI / 2);
+
+                    // Apply sine wave to the perpendicular movement
+                    const waveOffset = GHOST_WAVE_AMPLITUDE * Math.sin(currentTime * GHOST_WAVE_FREQUENCY + enemy.waveOffset);
+
+                    // Blend direct movement with wavy movement
+                    targetX = enemy.x + dx_to_player + perp_dx * waveOffset;
+                    targetY = enemy.y + dy_to_player + perp_dy * waveOffset;
+
+                    // Normalize the combined movement vector
+                    const combined_dx = targetX - enemy.x;
+                    const combined_dy = targetY - enemy.y;
+                    const combined_distance = Math.sqrt(combined_dx * combined_dx + combined_dy * combined_dy);
+
+                    if (combined_distance > 0) {
+                        enemy.x += (combined_dx / combined_distance) * currentEnemySpeed;
+                        enemy.y += (combined_dy / combined_distance) * currentEnemySpeed;
+                    }
+
+                } else if (enemy.aiType === 'bone_devil_charge') {
+                    // Bone Devil AI states: 'moving', 'pausing', 'charging'
+                    switch (enemy.aiState) {
+                        case 'moving':
+                            // Move towards player normally
+                            const dx = player.x - enemy.x;
+                            const dy = player.y - enemy.y;
+                            const distance = Math.sqrt(dx * dx + dy * dy);
+                            if (distance > 0) {
+                                enemy.x += (dx / distance) * currentEnemySpeed;
+                                enemy.y += (dy / distance) * currentEnemySpeed;
+                            }
+
+                            // Transition to pausing after a certain distance or time, or randomly
+                            if (distance < 100 || Math.random() < 0.005) { // If close or random chance
+                                enemy.aiState = 'pausing';
+                                enemy.stateTimer = currentTime;
+                            }
+                            break;
+                        case 'pausing':
+                            // Stay still
+                            if (currentTime - enemy.stateTimer > BONE_DEVIL_PAUSE_DURATION) {
+                                enemy.aiState = 'charging';
+                                enemy.stateTimer = currentTime;
+                                // Store target for charge
+                                enemy.chargeTargetX = player.x;
+                                enemy.chargeTargetY = player.y;
+                            }
+                            break;
+                        case 'charging':
+                            // Move rapidly towards stored charge target
+                            const charge_dx = enemy.chargeTargetX - enemy.x;
+                            const charge_dy = enemy.chargeTargetY - enemy.y;
+                            const charge_distance = Math.sqrt(charge_dx * charge_dx + charge_dy * charge_dy);
+
+                            if (charge_distance > 0) {
+                                enemy.x += (charge_dx / charge_distance) * (currentEnemySpeed * BONE_DEVIL_CHARGE_SPEED_MULTIPLIER);
+                                enemy.y += (charge_dy / charge_distance) * (currentEnemySpeed * BONE_DEVIL_CHARGE_SPEED_MULTIPLIER);
+                            }
+
+                            // Transition back to moving after charge duration or if target reached
+                            if (currentTime - enemy.stateTimer > BONE_DEVIL_CHARGE_DURATION || charge_distance < enemy.size) {
+                                enemy.aiState = 'moving';
+                            }
+                            break;
+                    }
+                } else { // 'direct' AI type (Skull, and others by default)
+                    const dx = player.x - enemy.x;
+                    const dy = player.y - enemy.y;
+                    const distance = Math.sqrt(dx * dx + dy * dy);
+
+                    if (distance > 0) {
+                        enemy.x += (dx / distance) * currentEnemySpeed;
+                        enemy.y += (dy / distance) * currentEnemySpeed;
+                    }
                 }
+
 
                 // Check for player-enemy collisions
                 if (checkCollision(player, enemy)) {
