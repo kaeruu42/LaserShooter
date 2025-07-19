@@ -117,6 +117,7 @@
             <p>Move: <strong>W A S D</strong></p>
             <p>Aim: <strong>Mouse</strong></p>
             <p>Shoot: <strong>Left Click (Hold for continuous fire!)</strong></p>
+            <p>Switch Weapon: <strong>Spacebar</strong></p>
         </div>
         <div id="powerupStatus" class="powerup-status" style="display: none;">
             RAPID FIRE ACTIVE!
@@ -172,17 +173,110 @@
             color: '#ff00ff' // Neon magenta
         };
 
-        // Array to hold active lasers
-        const lasers = [];
+        // Array to hold active lasers (now projectiles)
+        const projectiles = [];
 
-        // Laser properties
-        const laserSpeed = 10;
-        const laserColor = '#00ffff'; // Cyan
-        const laserSize = 5;
+        // Weapon definitions
+        const weapons = [
+            {
+                name: 'laser',
+                color: '#00ffff', // Cyan
+                projectileSize: 5,
+                projectileSpeed: 10, // Speed for laser projectile
+                fireRateFactor: 1, // Base fire rate
+                damage: 1,
+                type: 'projectile', // 'projectile' or 'aoe'
+                draw: (ctx, p) => { // Needle shape
+                    ctx.fillStyle = p.color;
+                    ctx.save();
+                    ctx.translate(p.x, p.y);
+                    ctx.rotate(Math.atan2(p.dirY, p.dirX)); // Rotate to direction of travel
+                    ctx.fillRect(-p.size * 2, -p.size / 2, p.size * 4, p.size); // Long thin rectangle
+                    ctx.restore();
+                },
+                icon: '⚡' // Emoji icon for laser
+            },
+            {
+                name: 'electric',
+                color: '#ffdd00', // Yellow
+                projectileSize: 3,
+                projectileSpeed: 12, // Speed for electric projectile
+                fireRateFactor: 2, // Faster firing
+                damage: 0.5, // Less damage per shot
+                spreadCount: 5, // Number of shots in spread
+                spreadAngle: Math.PI / 8, // Angle of spread
+                type: 'projectile',
+                draw: (ctx, p) => { // Small circle
+                    ctx.fillStyle = p.color;
+                    ctx.beginPath();
+                    ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+                    ctx.fill();
+                },
+                icon: '⚡' // Emoji icon for electric
+            },
+            {
+                name: 'frost',
+                color: '#87ceeb', // Sky Blue
+                projectileSize: 15, // Larger projectile
+                projectileSpeed: 7, // Slower speed for frost projectile
+                fireRateFactor: 0.5, // Slower firing
+                damage: 2,
+                effect: 'slow',
+                effectDuration: 3000, // 3 seconds slow
+                slowFactor: 0.5, // Reduce enemy speed by 50%
+                type: 'projectile',
+                draw: (ctx, p) => { // Large blue circle
+                    ctx.fillStyle = p.color;
+                    ctx.beginPath();
+                    ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+                    ctx.fill();
+                },
+                icon: '❄️' // Emoji icon for frost
+            },
+            {
+                name: 'ignition',
+                color: '#ff4500', // Orange Red
+                projectileSize: 7,
+                projectileSpeed: 9, // Speed for ignition projectile
+                fireRateFactor: 0.7, // Slower firing
+                damage: 1, // Initial damage
+                effect: 'burn',
+                burnDuration: 4000, // 4 seconds burn
+                burnDamagePerTick: 0.2, // Damage per tick
+                burnTickInterval: 200, // Every 200ms
+                type: 'projectile',
+                draw: (ctx, p) => { // Fiery circle
+                    ctx.fillStyle = p.color;
+                    ctx.beginPath();
+                    ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+                    ctx.fill();
+                },
+                icon: '🔥' // Emoji icon for ignition
+            },
+            {
+                name: 'spout',
+                color: '#00bfff', // Deep Sky Blue
+                projectileSize: 40, // Area of effect radius
+                projectileSpeed: 0, // AOE doesn't move
+                fireRateFactor: 0.3, // Very slow firing
+                damage: 5, // Damage per enemy in area
+                type: 'aoe', // Area of effect weapon
+                draw: (ctx, p) => { // Pulsating circle for AOE
+                    ctx.fillStyle = p.color;
+                    ctx.beginPath();
+                    ctx.arc(p.x, p.y, p.size * (0.5 + 0.5 * Math.sin(performance.now() / 100)), 0, Math.PI * 2); // Pulsating effect
+                    ctx.fill();
+                },
+                icon: '💧' // Emoji icon for spout
+            }
+        ];
+
+        let currentWeaponIndex = 0;
+        let currentWeapon = weapons[currentWeaponIndex];
 
         // Firing rate properties
-        let baseFireRate = 8; // Lasers per second (normal rate)
-        let rapidFireRate = 20; // Lasers per second (power-up rate)
+        let baseFireRate = currentWeapon.fireRateFactor * 8; // Adjust base fire rate by weapon factor
+        let rapidFireRate = currentWeapon.fireRateFactor * 20; // Adjust rapid fire rate by weapon factor
         let currentFireRate = baseFireRate;
         let lastShotTime = 0; // Timestamp of the last shot
         let rapidFireActive = false;
@@ -244,7 +338,8 @@
             w: false,
             a: false,
             s: false,
-            d: false
+            d: false,
+            space: false // Added for weapon switching
         };
 
         // Mouse input state
@@ -262,6 +357,10 @@
             if (e.key === 'a' || e.key === 'A') keys.a = true;
             if (e.key === 's' || e.key === 'S') keys.s = true;
             if (e.key === 'd' || e.key === 'D') keys.d = true;
+            if (e.code === 'Space' && !keys.space) { // Only trigger once per press
+                keys.space = true;
+                switchWeapon();
+            }
         });
 
         document.addEventListener('keyup', (e) => {
@@ -269,6 +368,7 @@
             if (e.key === 'a' || e.key === 'A') keys.a = false;
             if (e.key === 's' || e.key === 'S') keys.s = false;
             if (e.key === 'd' || e.key === 'D') keys.d = false;
+            if (e.code === 'Space') keys.space = false;
         });
 
         // Mouse movement for reticle
@@ -655,13 +755,13 @@
         }
 
 
-        // Function to shoot a laser
-        function shootLaser() {
+        // Function to fire the current weapon
+        function fireWeapon() {
             const currentTime = performance.now();
             const timeSinceLastShot = currentTime - lastShotTime;
             const requiredTimeBetweenShots = 1000 / currentFireRate; // Milliseconds per shot
 
-            // Only shoot if enough time has passed since the last shot
+            // Only fire if enough time has passed since the last shot
             if (timeSinceLastShot >= requiredTimeBetweenShots) {
                 // Calculate direction vector from player to reticle
                 const dx = reticle.x - player.x;
@@ -672,15 +772,63 @@
                 const dirX = dx / distance;
                 const dirY = dy / distance;
 
-                // Add a new laser to the array
-                lasers.push({
-                    x: player.x,
-                    y: player.y,
-                    dirX: dirX,
-                    dirY: dirY,
-                    color: laserColor,
-                    size: laserSize
-                });
+                if (currentWeapon.type === 'projectile') {
+                    if (currentWeapon.name === 'electric') {
+                        // Electric: multiple spread shots
+                        const numShots = currentWeapon.spreadCount;
+                        const baseAngle = Math.atan2(dirY, dirX);
+                        for (let i = 0; i < numShots; i++) {
+                            const angleOffset = (i - (numShots - 1) / 2) * (currentWeapon.spreadAngle / numShots);
+                            const newAngle = baseAngle + angleOffset;
+                            projectiles.push({
+                                x: player.x,
+                                y: player.y,
+                                dirX: Math.cos(newAngle),
+                                dirY: Math.sin(newAngle),
+                                color: currentWeapon.color,
+                                size: currentWeapon.projectileSize,
+                                speed: currentWeapon.projectileSpeed, // Assign projectile speed
+                                damage: currentWeapon.damage,
+                                type: currentWeapon.name,
+                                effect: currentWeapon.effect // Will be undefined for electric, which is fine
+                            });
+                        }
+                    } else {
+                        // Default projectile (laser, frost, ignition)
+                        projectiles.push({
+                            x: player.x,
+                            y: player.y,
+                            dirX: dirX,
+                            dirY: dirY,
+                            color: currentWeapon.color,
+                            size: currentWeapon.projectileSize,
+                            speed: currentWeapon.projectileSpeed, // Assign projectile speed
+                            damage: currentWeapon.damage,
+                            type: currentWeapon.name,
+                            effect: currentWeapon.effect // For frost/ignition
+                        });
+                    }
+                } else if (currentWeapon.type === 'aoe' && currentWeapon.name === 'spout') {
+                    // Spout: instantaneous AOE at reticle
+                    // No projectile, directly apply damage to enemies in area
+                    enemies.forEach(enemy => {
+                        if (checkCollision(enemy, {x: reticle.x, y: reticle.y, size: currentWeapon.projectileSize})) {
+                            enemy.health -= currentWeapon.damage;
+                            // Add visual feedback for AOE hit (e.g., temporary particle effect)
+                            // For now, just a console log
+                            console.log(`Enemy hit by Spout: ${enemy.type}, new health: ${enemy.health}`);
+                        }
+                    });
+                    // Add a temporary visual effect for spout at the reticle
+                    projectiles.push({
+                        x: reticle.x,
+                        y: reticle.y,
+                        size: currentWeapon.projectileSize,
+                        color: currentWeapon.color,
+                        type: 'spout_effect', // Special type for drawing only
+                        duration: 200 // How long the visual effect lasts
+                    });
+                }
 
                 lastShotTime = currentTime; // Update last shot time
             }
@@ -692,17 +840,27 @@
                 clearTimeout(rapidFireTimeoutId); // Clear any existing timeout if power-up is re-activated
             }
 
-            currentFireRate = rapidFireRate; // Set to rapid fire rate
+            // Calculate rapid fire rate based on current weapon's factor
+            currentFireRate = currentWeapon.fireRateFactor * rapidFireRate;
             rapidFireActive = true;
             powerupStatus.style.display = 'block'; // Show status message
 
             // Set a timeout to revert to base fire rate after duration
             rapidFireTimeoutId = setTimeout(() => {
-                currentFireRate = baseFireRate; // Revert to base rate
+                currentFireRate = currentWeapon.fireRateFactor * baseFireRate; // Revert to base rate
                 rapidFireActive = false;
                 powerupStatus.style.display = 'none'; // Hide status message
             }, duration);
         }
+
+        // Function to switch weapon
+        function switchWeapon() {
+            currentWeaponIndex = (currentWeaponIndex + 1) % weapons.length;
+            currentWeapon = weapons[currentWeaponIndex];
+            // Update fire rate based on new weapon's factor
+            currentFireRate = rapidFireActive ? currentWeapon.fireRateFactor * rapidFireRate : currentWeapon.fireRateFactor * baseFireRate;
+        }
+
 
         // Function to spawn a power-up at a random location
         function spawnPowerup() {
@@ -749,7 +907,15 @@
                 speed: enemyBaseSpeed * chosenType.speedFactor, // Apply speed factor
                 health: chosenType.health,
                 type: chosenType.name, // Store the type name for drawing
-                points: chosenType.points // Store points for scoring
+                points: chosenType.points, // Store points for scoring
+                // Status effects
+                isSlowed: false,
+                slowTimer: 0,
+                originalSpeed: enemyBaseSpeed * chosenType.speedFactor, // Store original speed
+                isBurning: false,
+                burnTimer: 0,
+                burnDamagePerTick: 0,
+                lastBurnTickTime: 0
             });
         }
 
@@ -768,8 +934,10 @@
             player.y = canvas.height / 2;
             score = 0;
             enemies.length = 0; // Clear all enemies
-            lasers.length = 0; // Clear all lasers
+            projectiles.length = 0; // Clear all projectiles
             powerup.active = false; // Deactivate power-up
+            currentWeaponIndex = 0; // Reset to default weapon
+            currentWeapon = weapons[currentWeaponIndex];
             currentFireRate = baseFireRate; // Reset fire rate
             rapidFireActive = false;
             if (rapidFireTimeoutId) clearTimeout(rapidFireTimeoutId);
@@ -782,7 +950,7 @@
             setTimeout(spawnPowerup, 1000);
         }
 
-        // Function to update game state (movement, laser positions, power-up, enemies)
+        // Function to update game state (movement, projectile positions, power-up, enemies)
         function update() {
             if (gameState !== 'playing') return; // Do not update if game is over
 
@@ -797,20 +965,29 @@
             player.y = Math.max(player.size * 0.5, Math.min(canvas.height - player.size * 0.5, player.y));
 
 
-            // If mouse is down, continuously try to shoot
+            // If mouse is down, continuously try to fire weapon
             if (mouse.isMouseDown) {
-                shootLaser();
+                fireWeapon();
             }
 
-            // Update laser positions
-            for (let i = lasers.length - 1; i >= 0; i--) {
-                const laser = lasers[i];
-                laser.x += laser.dirX * laserSpeed;
-                laser.y += laser.dirY * laserSpeed;
+            // Update projectile positions
+            for (let i = projectiles.length - 1; i >= 0; i--) {
+                const p = projectiles[i];
 
-                // Remove lasers that are off-screen
-                if (laser.x < -laser.size || laser.x > canvas.width + laser.size || laser.y < -laser.size || laser.y > canvas.height + laser.size) {
-                    lasers.splice(i, 1);
+                if (p.type === 'spout_effect') {
+                    p.duration -= 16; // Assuming 60fps, roughly 16ms per frame
+                    if (p.duration <= 0) {
+                        projectiles.splice(i, 1);
+                    }
+                    continue; // Spout effect doesn't move
+                }
+
+                p.x += p.dirX * p.speed; // Use projectile's individual speed
+                p.y += p.dirY * p.speed; // Use projectile's individual speed
+
+                // Remove projectiles that are off-screen
+                if (p.x < -p.size || p.x > canvas.width + p.size || p.y < -p.size || p.y > canvas.height + p.size) {
+                    projectiles.splice(i, 1);
                 }
             }
 
@@ -839,6 +1016,14 @@
             for (let i = enemies.length - 1; i >= 0; i--) {
                 const enemy = enemies[i];
 
+                // Apply status effects (slow, burn)
+                if (enemy.isSlowed) {
+                    // This will be handled in a later update for actual effect application
+                }
+                if (enemy.isBurning) {
+                    // This will be handled in a later update for actual effect application
+                }
+
                 // Move enemy towards the player
                 const dx = player.x - enemy.x;
                 const dy = player.y - enemy.y;
@@ -859,16 +1044,30 @@
                         finalScoreDisplay.textContent = score;
                         gameOverScreen.style.display = 'flex'; // Show game over screen
                     }
-                    continue; // Skip laser collision check for this enemy as it's removed
+                    continue; // Skip projectile collision check for this enemy as it's removed
                 }
 
-                // Check for laser-enemy collisions
-                for (let j = lasers.length - 1; j >= 0; j--) {
-                    const laser = lasers[j];
+                // Check for projectile-enemy collisions
+                for (let j = projectiles.length - 1; j >= 0; j--) {
+                    const p = projectiles[j];
+
+                    // Skip spout_effect as it's purely visual and its damage is applied instantly
+                    if (p.type === 'spout_effect') continue;
+
                     // Collision check considers the enemy's actual size
-                    if (checkCollision(laser, enemy)) {
-                        enemy.health--; // Reduce enemy health
-                        lasers.splice(j, 1); // Remove the laser
+                    if (checkCollision(p, enemy)) {
+                        enemy.health -= p.damage; // Reduce enemy health by projectile damage
+                        projectiles.splice(j, 1); // Remove the projectile
+                        
+                        // Apply specific weapon effects on hit (placeholders for now)
+                        if (p.effect === 'slow') {
+                            // Logic for slowing enemy
+                            console.log(`Frost hit ${enemy.type}!`);
+                        } else if (p.effect === 'burn') {
+                            // Logic for burning enemy
+                            console.log(`Ignition hit ${enemy.type}!`);
+                        }
+
                         if (enemy.health <= 0) {
                             score += enemy.points; // Add points to score
                             enemies.splice(i, 1); // Remove the enemy if health is 0
@@ -890,12 +1089,29 @@
             // Draw reticle
             drawReticle();
 
-            // Draw lasers
-            lasers.forEach(laser => {
-                ctx.fillStyle = laser.color;
-                ctx.beginPath();
-                ctx.arc(laser.x, laser.y, laser.size, 0, Math.PI * 2);
-                ctx.fill();
+            // Draw projectiles
+            projectiles.forEach(p => {
+                // Use the weapon's defined draw function for the projectile
+                // For 'spout_effect', we use a generic draw function that pulses
+                if (p.type === 'spout_effect') {
+                    // Draw a pulsating circle for the AOE effect
+                    ctx.fillStyle = p.color;
+                    ctx.beginPath();
+                    ctx.arc(p.x, p.y, p.size * (0.5 + 0.5 * Math.abs(Math.sin(performance.now() / 100))), 0, Math.PI * 2); // Pulsating effect
+                    ctx.fill();
+                } else {
+                    // Find the weapon definition to get its draw function
+                    const weaponDef = weapons.find(w => w.name === p.type);
+                    if (weaponDef && weaponDef.draw) {
+                        weaponDef.draw(ctx, p);
+                    } else {
+                        // Fallback draw for unknown projectile types
+                        ctx.fillStyle = p.color;
+                        ctx.beginPath();
+                        ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+                        ctx.fill();
+                    }
+                }
             });
 
             // Draw power-up
@@ -910,7 +1126,7 @@
             drawHUD();
         }
 
-        // Function to draw the HUD (Health Bar and Score)
+        // Function to draw the HUD (Health Bar, Score, and Weapon Selector)
         function drawHUD() {
             // Health Bar
             const healthBarWidth = 200;
@@ -945,6 +1161,40 @@
             ctx.textAlign = 'right';
             ctx.textBaseline = 'top';
             ctx.fillText(`Score: ${score}`, canvas.width - 20, 20);
+
+            // Weapon Selector
+            const weaponIconSize = 40;
+            const weaponIconPadding = 10;
+            const totalWeaponWidth = (weaponIconSize + weaponIconPadding) * weapons.length - weaponIconPadding;
+            const startX = (canvas.width / 2) - (totalWeaponWidth / 2);
+            const startY = 20; // Position below score/health
+
+            weapons.forEach((weapon, index) => {
+                const iconX = startX + index * (weaponIconSize + weaponIconPadding);
+                const iconY = startY;
+
+                // Draw background for icon
+                ctx.fillStyle = '#333';
+                ctx.fillRect(iconX, iconY, weaponIconSize, weaponIconSize);
+
+                // Draw icon text (emoji)
+                ctx.font = `${weaponIconSize * 0.7}px Arial`; // Use Arial for emojis
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillStyle = '#fff';
+                ctx.fillText(weapon.icon, iconX + weaponIconSize / 2, iconY + weaponIconSize / 2);
+
+                // Highlight selected weapon
+                if (index === currentWeaponIndex) {
+                    ctx.strokeStyle = '#00ff7f'; // Neon green highlight
+                    ctx.lineWidth = 3;
+                    ctx.strokeRect(iconX, iconY, weaponIconSize, weaponIconSize);
+                    ctx.shadowBlur = 10;
+                    ctx.shadowColor = '#00ff7f';
+                    ctx.strokeRect(iconX, iconY, weaponIconSize, weaponIconSize); // Draw again for stronger glow
+                    ctx.shadowBlur = 0; // Reset shadow
+                }
+            });
         }
 
 
