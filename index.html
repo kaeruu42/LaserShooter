@@ -269,7 +269,7 @@
             box-shadow: 0 3px 10px rgba(0, 191, 255, 0.3);
         }
 
-        /* Media query for smaller screens to collapse title */
+        /* Media query for smaller screens to collapse title and scale HUD */
         @media (max-width: 600px) {
             h1 {
                 font-size: 1.5em; /* Smaller main game title */
@@ -314,7 +314,7 @@
 </head>
 <body>
     <div class="game-container">
-        <h1>Ruin Delvers 2: Investigation of the Divine</h1>
+        <h1 id="gameTitle">Ruin Delvers 2: Investigation of the Divine</h1>
 
         <!-- Title Screen -->
         <div id="titleScreen">
@@ -374,6 +374,7 @@
         // Title Screen elements
         const titleScreen = document.getElementById('titleScreen');
         const startButton = document.getElementById('startButton');
+        const gameTitle = document.getElementById('gameTitle'); // Get the main game title element
 
 
         // Player properties (MOVED TO TOP)
@@ -714,8 +715,9 @@
         restartButton.addEventListener('click', () => {
             // Hide game over screen
             gameOverScreen.style.display = 'none';
-            // Show title screen
+            // Show title screen and game title
             titleScreen.style.display = 'flex';
+            gameTitle.style.display = 'block'; // Show the main game title
             gameState = 'title'; // Set game state back to title
         });
 
@@ -1257,6 +1259,7 @@
         // Function to start the game from the title screen
         function startGame() {
             titleScreen.style.display = 'none'; // Hide title screen
+            gameTitle.style.display = 'none'; // Hide the main game title when playing
             // Show game elements
             const topHud = document.querySelector('.top-hud');
             const controlsInfo = document.querySelector('.controls-info');
@@ -1290,6 +1293,7 @@
                 // document.querySelector('.bottom-hud').style.display = 'none'; // Removed
                 document.querySelector('.controls-info').style.display = 'none';
                 canvas.style.display = 'none';
+                gameTitle.style.display = 'block'; // Show title again on game over/win
                 return; // Stop updating game state
             }
 
@@ -1520,6 +1524,7 @@
                         // document.querySelector('.bottom-hud').style.display = 'none'; // Removed
                         document.querySelector('.controls-info').style.display = 'none';
                         canvas.style.display = 'none';
+                        gameTitle.style.display = 'block'; // Show title again on game over/win
                     }
                     continue; // Skip projectile collision check for this enemy as it's removed
                 }
@@ -1663,6 +1668,7 @@
             document.querySelector('.controls-info').style.display = 'none';
             canvas.style.display = 'none';
             titleScreen.style.display = 'flex'; // Ensure title screen is visible
+            gameTitle.style.display = 'block'; // Ensure the main game title is visible initially
 
             gameLoop(); // Start the loop, but it will only update/draw if gameState is 'playing'
         };
