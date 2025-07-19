@@ -268,6 +268,48 @@
             transform: translateY(0);
             box-shadow: 0 3px 10px rgba(0, 191, 255, 0.3);
         }
+
+        /* Media query for smaller screens to collapse title */
+        @media (max-width: 600px) {
+            h1 {
+                font-size: 1.5em; /* Smaller main game title */
+                margin-bottom: 5px;
+            }
+
+            #titleScreen h2 {
+                font-size: 1.8em; /* Smaller title on title screen */
+                margin-bottom: 20px;
+            }
+
+            .hud-item {
+                padding: 3px 8px;
+                font-size: 0.8em;
+                min-width: 60px;
+            }
+
+            .health-bar-container {
+                width: 120px;
+                height: 16px;
+            }
+
+            .health-bar-text {
+                font-size: 0.7em;
+            }
+
+            .timer-display {
+                font-size: 1em;
+            }
+
+            .weapon-icon {
+                width: 35px;
+                height: 35px;
+                font-size: 1.4em;
+            }
+
+            .controls-info p {
+                font-size: 0.8em;
+            }
+        }
     </style>
 </head>
 <body>
