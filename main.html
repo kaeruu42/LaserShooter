@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Laser Shooter Game</title>
+    <title>Ruin Delvers 2: Investigation of the Divine</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap" rel="stylesheet">
     <style>
         body {
@@ -50,36 +50,38 @@
             font-size: 2em; /* Adjust size for better fit */
         }
 
-        .top-hud, .bottom-hud {
+        .top-hud {
             width: 100%;
             display: flex;
-            justify-content: space-around; /* Distribute items */
+            justify-content: space-between; /* Distribute items with space between */
             align-items: center;
             padding: 5px 0;
             box-sizing: border-box;
             flex-wrap: wrap; /* Allow items to wrap on smaller screens */
         }
 
+        /* Removed .bottom-hud styles as it's no longer used */
+
         .hud-item {
             background-color: #444;
-            padding: 8px 15px;
+            padding: 5px 10px; /* Scaled down padding */
             border-radius: 8px;
-            margin: 5px; /* Space between HUD items */
-            font-size: 1.1em;
+            margin: 3px; /* Scaled down margin */
+            font-size: 0.9em; /* Scaled down font size */
             font-weight: bold;
             color: #eee;
-            min-width: 100px; /* Ensure minimum width for readability */
+            min-width: 80px; /* Ensure minimum width for readability */
             text-align: center;
         }
 
         .health-bar-container {
-            width: 180px; /* Fixed width for the bar itself */
-            height: 20px;
+            width: 150px; /* Scaled down width for the bar itself */
+            height: 18px; /* Scaled down height */
             background-color: #555;
             border-radius: 5px;
             overflow: hidden;
             border: 1px solid #fff;
-            margin: 5px;
+            margin: 3px; /* Scaled down margin */
             display: flex; /* To center text inside */
             align-items: center;
             justify-content: center;
@@ -99,13 +101,13 @@
         .health-bar-text {
             position: relative; /* To be on top of the inner bar */
             color: #fff;
-            font-size: 0.9em;
+            font-size: 0.8em; /* Scaled down font size */
             z-index: 1;
         }
 
         .timer-display {
             color: #00ff7f; /* Neon green for timer */
-            font-size: 1.5em; /* Larger for timer */
+            font-size: 1.2em; /* Scaled down font size */
             text-shadow: 0 0 8px rgba(0, 255, 127, 0.6);
         }
 
@@ -116,22 +118,22 @@
 
         .weapon-selector {
             display: flex;
-            gap: 10px; /* Space between weapon icons */
-            margin-top: 10px; /* Space from canvas */
+            gap: 8px; /* Scaled down space between weapon icons */
+            /* margin-top: 10px; Removed as it's now in top-hud */
             flex-wrap: wrap;
             justify-content: center;
         }
 
         .weapon-icon {
-            width: 45px;
-            height: 45px;
+            width: 40px; /* Scaled down width */
+            height: 40px; /* Scaled down height */
             background-color: #333;
             border: 2px solid #555;
-            border-radius: 10px;
+            border-radius: 8px; /* Scaled down border-radius */
             display: flex;
             justify-content: center;
             align-items: center;
-            font-size: 1.8em; /* Larger emoji size */
+            font-size: 1.6em; /* Scaled down emoji size */
             cursor: pointer;
             transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.1s ease;
             box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
@@ -166,6 +168,56 @@
             text-shadow: 0 0 8px rgba(0, 255, 127, 0.6);
             text-align: center;
             width: 100%;
+        }
+
+        /* Title Screen Styles */
+        #titleScreen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: #1a1a2e; /* Match body background */
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 20; /* On top of everything */
+            border-radius: 20px; /* Match game-container */
+            box-shadow: 0 0 30px rgba(138, 43, 226, 0.5);
+        }
+
+        #titleScreen h2 {
+            font-size: 2.5em;
+            color: #00bfff; /* Neon blue title */
+            text-shadow: 0 0 20px rgba(0, 191, 255, 0.8);
+            margin-bottom: 40px;
+            text-align: center;
+        }
+
+        #startButton {
+            background-color: #00ff7f; /* Neon green */
+            color: #1a1a2e;
+            border: none;
+            padding: 18px 40px;
+            border-radius: 12px;
+            font-size: 1.5em;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background-color 0.3s ease, transform 0.2s ease, box-shadow 0.3s ease;
+            box-shadow: 0 5px 15px rgba(0, 255, 127, 0.4);
+            margin-bottom: 30px;
+        }
+
+        #startButton:hover {
+            background-color: #39ff14; /* Brighter green on hover */
+            transform: translateY(-3px);
+            box-shadow: 0 8px 20px rgba(0, 255, 127, 0.6);
+        }
+
+        #startButton:active {
+            transform: translateY(0);
+            box-shadow: 0 3px 10px rgba(0, 255, 127, 0.3);
         }
 
         .game-over-screen {
@@ -220,19 +272,25 @@
 </head>
 <body>
     <div class="game-container">
-        <h1>Laser Shooter</h1>
+        <h1>Ruin Delvers 2: Investigation of the Divine</h1>
+
+        <!-- Title Screen -->
+        <div id="titleScreen">
+            <h2>Ruin Delvers 2: Investigation of the Divine</h2>
+            <button id="startButton">Start Game</button>
+        </div>
+
         <div class="top-hud">
             <div class="hud-item health-bar-container">
                 <div id="healthBarInner" class="health-bar-inner"></div>
                 <span id="healthBarText" class="health-bar-text">Health: 100/100</span>
             </div>
+            <div id="weaponSelectorContainer" class="weapon-selector"></div> <!-- Moved here -->
             <div id="timerDisplay" class="hud-item timer-display">Time: 2:00</div>
             <div id="expDisplay" class="hud-item exp-display">EXP: 0</div>
         </div>
         <canvas id="gameCanvas"></canvas>
-        <div class="bottom-hud">
-            <div id="weaponSelectorContainer" class="weapon-selector"></div>
-        </div>
+        <!-- Removed .bottom-hud as it's no longer needed -->
         <div class="controls-info">
             <p><strong>Controls:</strong></p>
             <p>Move: <strong>W A S D</strong></p>
@@ -248,7 +306,7 @@
         <div id="gameOverScreen" class="game-over-screen" style="display: none;">
             <p id="gameOverMessage">GAME OVER!</p>
             <p>Final EXP: <span id="finalScore">0</span></p>
-            <button id="restartButton" class="restart-button">Restart Game</button>
+            <button id="restartButton" class="restart-button">Back to Title</button>
         </div>
     </div>
 
@@ -271,6 +329,11 @@
         const expDisplay = document.getElementById('expDisplay');
         const weaponSelectorContainer = document.getElementById('weaponSelectorContainer');
 
+        // Title Screen elements
+        const titleScreen = document.getElementById('titleScreen');
+        const startButton = document.getElementById('startButton');
+
+
         // Player properties (MOVED TO TOP)
         const player = {
             x: 0, // Initialized to 0, will be set correctly by setCanvasSize
@@ -291,7 +354,7 @@
         };
 
         // Game state variables
-        let gameState = 'playing'; // 'playing', 'gameOver', or 'win'
+        let gameState = 'title'; // 'title', 'playing', 'gameOver', or 'win'
         let score = 0;
 
         // Set canvas dimensions (responsive)
@@ -510,6 +573,7 @@
 
         // Keyboard input
         document.addEventListener('keydown', (e) => {
+            if (gameState !== 'playing') return; // Only allow input when playing
             if (e.key === 'w' || e.key === 'W') keys.w = true;
             if (e.key === 'a' || e.key === 'A') keys.a = true;
             if (e.key === 's' || e.key === 'S') keys.s = true;
@@ -521,6 +585,7 @@
         });
 
         document.addEventListener('keyup', (e) => {
+            if (gameState !== 'playing') return; // Only allow input when playing
             if (e.key === 'w' || e.key === 'W') keys.w = false;
             if (e.key === 'a' || e.key === 'A') keys.a = false;
             if (e.key === 's' || e.key === 'S') keys.s = false;
@@ -530,6 +595,7 @@
 
         // Mouse movement for reticle
         canvas.addEventListener('mousemove', (e) => {
+            if (gameState !== 'playing') return; // Only allow input when playing
             // Get mouse position relative to the canvas
             const rect = canvas.getBoundingClientRect();
             reticle.x = e.clientX - rect.left;
@@ -538,12 +604,14 @@
 
         // Mouse click for shooting (continuous firing handled in gameLoop)
         canvas.addEventListener('mousedown', (e) => {
+            if (gameState !== 'playing') return; // Only allow input when playing
             if (e.button === 0) { // Left mouse button
                 mouse.isMouseDown = true;
             }
         });
 
         canvas.addEventListener('mouseup', (e) => {
+            if (gameState !== 'playing') return; // Only allow input when playing
             if (e.button === 0) {
                 mouse.isMouseDown = false;
             }
@@ -558,6 +626,7 @@
         let touchMoveY = 0;
 
         canvas.addEventListener('touchstart', (e) => {
+            if (gameState !== 'playing') return; // Only allow input when playing
             e.preventDefault(); // Prevent scrolling/zooming
             const touch = e.touches[0];
             const rect = canvas.getBoundingClientRect();
@@ -569,6 +638,7 @@
         });
 
         canvas.addEventListener('touchmove', (e) => {
+            if (gameState !== 'playing') return; // Only allow input when playing
             e.preventDefault();
             const touch = e.touches[0];
             const rect = canvas.getBoundingClientRect();
@@ -592,14 +662,24 @@
         });
 
         canvas.addEventListener('touchend', (e) => {
+            if (gameState !== 'playing') return; // Only allow input when playing
             // Stop movement and firing when touch ends
             keys.w = keys.a = keys.s = keys.d = false;
             mouse.isMouseDown = false;
         });
 
-        // Restart button listener
+        // Restart button listener (now "Back to Title")
         restartButton.addEventListener('click', () => {
-            resetGame();
+            // Hide game over screen
+            gameOverScreen.style.display = 'none';
+            // Show title screen
+            titleScreen.style.display = 'flex';
+            gameState = 'title'; // Set game state back to title
+        });
+
+        // Start Button listener for Title Screen
+        startButton.addEventListener('click', () => {
+            startGame();
         });
 
         // --- Game Functions ---
@@ -1121,7 +1201,7 @@
             if (rapidFireTimeoutId) clearTimeout(rapidFireTimeoutId);
             powerupStatus.style.display = 'none';
             gameOverScreen.style.display = 'none';
-            gameState = 'playing';
+            gameState = 'playing'; // Set game state to playing
             gameTimer = initialGameTime; // Reset game timer
             gameStartTime = performance.now(); // Reset game start time
             gameOverMessage.textContent = 'GAME OVER!'; // Reset message
@@ -1132,9 +1212,26 @@
             setTimeout(spawnPowerup, 1000);
         }
 
+        // Function to start the game from the title screen
+        function startGame() {
+            titleScreen.style.display = 'none'; // Hide title screen
+            // Show game elements
+            const topHud = document.querySelector('.top-hud');
+            const controlsInfo = document.querySelector('.controls-info');
+
+            topHud.style.display = 'flex';
+            // bottomHud is removed, so no need to set its display
+            controlsInfo.style.display = 'block';
+            canvas.style.display = 'block';
+
+            console.log("topHud display after startGame:", topHud.style.display); // Debugging line for topHud
+
+            resetGame(); // Reset and start the game
+        }
+
         // Function to update game state (movement, projectile positions, power-up, enemies)
         function update() {
-            if (gameState !== 'playing') return; // Do not update if game is over
+            if (gameState !== 'playing') return; // Do not update if game is not playing
 
             const currentTime = performance.now();
             const elapsedTime = (currentTime - gameStartTime) / 1000; // Time in seconds
@@ -1146,6 +1243,11 @@
                 gameOverMessage.textContent = 'YOU WIN!';
                 finalScoreDisplay.textContent = score;
                 gameOverScreen.style.display = 'flex';
+                // Hide game elements when game is over/won
+                document.querySelector('.top-hud').style.display = 'none';
+                // document.querySelector('.bottom-hud').style.display = 'none'; // Removed
+                document.querySelector('.controls-info').style.display = 'none';
+                canvas.style.display = 'none';
                 return; // Stop updating game state
             }
 
@@ -1371,6 +1473,11 @@
                         gameState = 'gameOver';
                         finalScoreDisplay.textContent = score;
                         gameOverScreen.style.display = 'flex'; // Show game over screen
+                        // Hide game elements when game is over/won
+                        document.querySelector('.top-hud').style.display = 'none';
+                        // document.querySelector('.bottom-hud').style.display = 'none'; // Removed
+                        document.querySelector('.controls-info').style.display = 'none';
+                        canvas.style.display = 'none';
                     }
                     continue; // Skip projectile collision check for this enemy as it's removed
                 }
@@ -1412,50 +1519,53 @@
             // Clear the canvas
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-            // Draw player
-            drawPlayer();
+            // Only draw game elements if playing
+            if (gameState === 'playing') {
+                // Draw player
+                drawPlayer();
 
-            // Draw reticle
-            drawReticle();
+                // Draw reticle
+                drawReticle();
 
-            // Draw projectiles
-            projectiles.forEach(p => {
-                // Use the weapon's defined draw function for the projectile
-                // For 'spout_effect', we use a generic draw function that pulses
-                if (p.type === 'spout_effect') {
-                    // Draw a pulsating circle for the AOE effect
-                    ctx.fillStyle = p.color;
-                    ctx.beginPath();
-                    ctx.arc(p.x, p.y, p.size * (0.5 + 0.5 * Math.abs(Math.sin(performance.now() / 100))), 0, Math.PI * 2); // Pulsating effect
-                    ctx.fill();
-                } else {
-                    // Find the weapon definition to get its draw function
-                    const weaponDef = weapons.find(w => w.name === p.type);
-                    if (weaponDef && weaponDef.draw) {
-                        weaponDef.draw(ctx, p);
-                    } else {
-                        // Fallback draw for unknown projectile types
+                // Draw projectiles
+                projectiles.forEach(p => {
+                    // Use the weapon's defined draw function for the projectile
+                    // For 'spout_effect', we use a generic draw function that pulses
+                    if (p.type === 'spout_effect') {
+                        // Draw a pulsating circle for the AOE effect
                         ctx.fillStyle = p.color;
                         ctx.beginPath();
-                        ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+                        ctx.arc(p.x, p.y, p.size * (0.5 + 0.5 * Math.abs(Math.sin(performance.now() / 100))), 0, Math.PI * 2); // Pulsating effect
                         ctx.fill();
+                    } else {
+                        // Find the weapon definition to get its draw function
+                        const weaponDef = weapons.find(w => w.name === p.type);
+                        if (weaponDef && weaponDef.draw) {
+                            weaponDef.draw(ctx, p);
+                        } else {
+                            // Fallback draw for unknown projectile types
+                            ctx.fillStyle = p.color;
+                            ctx.beginPath();
+                            ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+                            ctx.fill();
+                        }
                     }
-                }
-            });
+                });
 
-            // Draw power-up
-            drawPowerup();
+                // Draw power-up
+                drawPowerup();
 
-            // Draw enemies
-            enemies.forEach(enemy => {
-                drawEnemy(enemy); // Call the main drawEnemy function
-            });
-
+                // Draw enemies
+                enemies.forEach(enemy => {
+                    drawEnemy(enemy); // Call the main drawEnemy function
+                });
+            }
             // HUD is now DOM elements, no need to draw on canvas
         }
 
         // Function to render the weapon selector in the DOM
         function renderWeaponSelector() {
+            console.log("renderWeaponSelector called");
             weaponSelectorContainer.innerHTML = ''; // Clear existing icons
             weapons.forEach((weapon, index) => {
                 const weaponIconDiv = document.createElement('div');
@@ -1473,6 +1583,7 @@
                 });
                 weaponSelectorContainer.appendChild(weaponIconDiv);
             });
+            console.log("weaponSelectorContainer innerHTML:", weaponSelectorContainer.innerHTML);
         }
 
         // Function to update the HUD elements in the DOM
@@ -1503,8 +1614,15 @@
         window.onload = function () {
             setCanvasSize(); // Set initial canvas size and player/reticle positions
             window.addEventListener('resize', setCanvasSize); // Add resize listener after initial setup
-            resetGame(); // Initialize game state
-            gameLoop();
+
+            // Initially hide game elements and show title screen
+            document.querySelector('.top-hud').style.display = 'none';
+            // document.querySelector('.bottom-hud').style.display = 'none'; // Removed as the div is removed
+            document.querySelector('.controls-info').style.display = 'none';
+            canvas.style.display = 'none';
+            titleScreen.style.display = 'flex'; // Ensure title screen is visible
+
+            gameLoop(); // Start the loop, but it will only update/draw if gameState is 'playing'
         };
     </script>
 </body>
