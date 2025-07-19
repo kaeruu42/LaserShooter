@@ -50,6 +50,14 @@
             color: #cccccc;
             text-align: center;
         }
+
+        .powerup-status {
+            margin-top: 10px;
+            font-size: 1em;
+            color: #00ff7f; /* Neon green for active status */
+            font-weight: bold;
+            text-shadow: 0 0 8px rgba(0, 255, 127, 0.6);
+        }
     </style>
 </head>
 <body>
@@ -60,7 +68,10 @@
             <p><strong>Controls:</strong></p>
             <p>Move: <strong>W A S D</strong></p>
             <p>Aim: <strong>Mouse</strong></p>
-            <p>Shoot: <strong>Left Click</strong></p>
+            <p>Shoot: <strong>Left Click (Hold for continuous fire!)</strong></p>
+        </div>
+        <div id="powerupStatus" class="powerup-status" style="display: none;">
+            RAPID FIRE ACTIVE!
         </div>
     </div>
 
@@ -68,6 +79,9 @@
         // Get the canvas element and its 2D rendering context
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
+
+        // Get the power-up status element
+        const powerupStatus = document.getElementById('powerupStatus');
 
         // Set canvas dimensions (responsive)
         const setCanvasSize = () => {
@@ -81,9 +95,9 @@
         const player = {
             x: canvas.width / 2,
             y: canvas.height / 2,
-            size: 30,
+            size: 30, // Base size for the frog
             speed: 5,
-            color: '#00ff7f' // Neon green
+            color: '#32CD32' // Lime Green for the frog
         };
 
         // Reticle properties
@@ -101,6 +115,25 @@
         const laserSpeed = 10;
         const laserColor = '#00ffff'; // Cyan
         const laserSize = 5;
+
+        // Firing rate properties
+        let baseFireRate = 8; // Lasers per second (normal rate)
+        let rapidFireRate = 20; // Lasers per second (power-up rate)
+        let currentFireRate = baseFireRate;
+        let lastShotTime = 0; // Timestamp of the last shot
+        let rapidFireActive = false;
+        let rapidFireTimeoutId = null; // To clear the timeout
+
+        // Power-up object properties
+        const powerup = {
+            x: 0,
+            y: 0,
+            size: 20,
+            color: '#FFFF00', // Yellow
+            active: false,
+            spawnDelay: 5000, // 5 seconds before next spawn
+            lastCollectedTime: 0
+        };
 
         // Keyboard input state
         const keys = {
@@ -142,11 +175,10 @@
             reticle.y = e.clientY - rect.top;
         });
 
-        // Mouse click for shooting
+        // Mouse click for shooting (continuous firing handled in gameLoop)
         canvas.addEventListener('mousedown', (e) => {
             if (e.button === 0) { // Left mouse button
                 mouse.isMouseDown = true;
-                shootLaser();
             }
         });
 
@@ -171,8 +203,8 @@
             touchStartX = touch.clientX - rect.left;
             touchStartY = touch.clientY - rect.top;
 
-            // Simple tap to shoot
-            shootLaser();
+            // Activate continuous firing on touch start
+            mouse.isMouseDown = true;
         });
 
         canvas.addEventListener('touchmove', (e) => {
@@ -199,35 +231,65 @@
         });
 
         canvas.addEventListener('touchend', (e) => {
-            // Stop movement when touch ends
+            // Stop movement and firing when touch ends
             keys.w = keys.a = keys.s = keys.d = false;
+            mouse.isMouseDown = false;
         });
-
 
         // --- Game Functions ---
 
-        // Function to draw the player
+        // Function to draw the player (frog with moving eyes!)
         function drawPlayer() {
             ctx.fillStyle = player.color;
+
+            // Draw frog body (main ellipse) - centered at player.x, player.y
             ctx.beginPath();
-            // Draw a triangle for the player, pointing towards the reticle
+            ctx.ellipse(player.x, player.y, player.size * 0.7, player.size * 0.5, 0, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Frog eye properties
+            const eyeRadius = player.size * 0.2;
+            const eyeOffsetX = player.size * 0.3;
+            const eyeOffsetY = -player.size * 0.4; // Eyes are above the body relative to player.y
+
+            // Left eye stalk position
+            const leftEyeX = player.x - eyeOffsetX;
+            const leftEyeY = player.y + eyeOffsetY;
+
+            // Right eye stalk position
+            const rightEyeX = player.x + eyeOffsetX;
+            const rightEyeY = player.y + eyeOffsetY;
+
+            // Draw left eye stalk
+            ctx.beginPath();
+            ctx.arc(leftEyeX, leftEyeY, eyeRadius, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Draw right eye stalk
+            ctx.beginPath();
+            ctx.arc(rightEyeX, rightEyeY, eyeRadius, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Draw pupils (black circles)
+            ctx.fillStyle = 'black';
+            const pupilRadius = eyeRadius * 0.4;
+            const maxPupilOffset = eyeRadius - pupilRadius; // Max distance pupil can move from eye center
+
+            // Calculate angle from player to reticle (for pupil direction)
             const angleToReticle = Math.atan2(reticle.y - player.y, reticle.x - player.x);
-            const halfSize = player.size / 2;
 
-            // Calculate points of the triangle
-            const p1x = player.x + halfSize * Math.cos(angleToReticle);
-            const p1y = player.y + halfSize * Math.sin(angleToReticle);
+            // Calculate pupil offset based on angle
+            const pupilDx = Math.cos(angleToReticle) * maxPupilOffset;
+            const pupilDy = Math.sin(angleToReticle) * maxPupilOffset;
 
-            const p2x = player.x + halfSize * Math.cos(angleToReticle + (2 * Math.PI / 3));
-            const p2y = player.y + halfSize * Math.sin(angleToReticle + (2 * Math.PI / 3));
+            // Draw left pupil
+            ctx.beginPath();
+            ctx.arc(leftEyeX + pupilDx, leftEyeY + pupilDy, pupilRadius, 0, Math.PI * 2);
+            ctx.fill();
 
-            const p3x = player.x + halfSize * Math.cos(angleToReticle - (2 * Math.PI / 3));
-            const p3y = player.y + halfSize * Math.sin(angleToReticle - (2 * Math.PI / 3));
-
-            ctx.moveTo(p1x, p1y);
-            ctx.lineTo(p2x, p2y);
-            ctx.lineTo(p3x, p3y);
-            ctx.closePath();
+            // Draw right pupil
+            ctx.beginPath();
+            ctx.arc(rightEyeX + pupilDx, rightEyeY + pupilDy, pupilRadius, 0, Math.PI * 2);
             ctx.fill();
         }
 
@@ -250,29 +312,91 @@
             ctx.stroke();
         }
 
-        // Function to shoot a laser
-        function shootLaser() {
-            // Calculate direction vector from player to reticle
-            const dx = reticle.x - player.x;
-            const dy = reticle.y - player.y;
-            const distance = Math.sqrt(dx * dx + dy * dy);
+        // Function to draw the power-up
+        function drawPowerup() {
+            if (powerup.active) {
+                ctx.fillStyle = powerup.color;
+                ctx.beginPath();
+                ctx.arc(powerup.x, powerup.y, powerup.size, 0, Math.PI * 2);
+                ctx.fill();
 
-            // Normalize the direction vector
-            const dirX = dx / distance;
-            const dirY = dy / distance;
-
-            // Add a new laser to the array
-            lasers.push({
-                x: player.x,
-                y: player.y,
-                dirX: dirX,
-                dirY: dirY,
-                color: laserColor,
-                size: laserSize
-            });
+                // Add a pulsating glow effect
+                ctx.shadowBlur = 15;
+                ctx.shadowColor = powerup.color;
+                ctx.globalAlpha = 0.8 + 0.2 * Math.sin(performance.now() / 200); // Pulsating effect
+                ctx.fill();
+                ctx.shadowBlur = 0; // Reset shadow
+                ctx.globalAlpha = 1; // Reset alpha
+            }
         }
 
-        // Function to update game state (movement, laser positions)
+        // Function to shoot a laser
+        function shootLaser() {
+            const currentTime = performance.now();
+            const timeSinceLastShot = currentTime - lastShotTime;
+            const requiredTimeBetweenShots = 1000 / currentFireRate; // Milliseconds per shot
+
+            // Only shoot if enough time has passed since the last shot
+            if (timeSinceLastShot >= requiredTimeBetweenShots) {
+                // Calculate direction vector from player to reticle
+                const dx = reticle.x - player.x;
+                const dy = reticle.y - player.y;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+
+                // Normalize the direction vector
+                const dirX = dx / distance;
+                const dirY = dy / distance;
+
+                // Add a new laser to the array
+                lasers.push({
+                    x: player.x,
+                    y: player.y,
+                    dirX: dirX,
+                    dirY: dirY,
+                    color: laserColor,
+                    size: laserSize
+                });
+
+                lastShotTime = currentTime; // Update last shot time
+            }
+        }
+
+        // Function to activate rapid fire power-up
+        function activateRapidFire(duration) {
+            if (rapidFireActive) {
+                clearTimeout(rapidFireTimeoutId); // Clear any existing timeout if power-up is re-activated
+            }
+
+            currentFireRate = rapidFireRate; // Set to rapid fire rate
+            rapidFireActive = true;
+            powerupStatus.style.display = 'block'; // Show status message
+
+            // Set a timeout to revert to base fire rate after duration
+            rapidFireTimeoutId = setTimeout(() => {
+                currentFireRate = baseFireRate; // Revert to base rate
+                rapidFireActive = false;
+                powerupStatus.style.display = 'none'; // Hide status message
+            }, duration);
+        }
+
+        // Function to spawn a power-up at a random location
+        function spawnPowerup() {
+            if (!powerup.active) { // Only spawn if not already active
+                powerup.x = Math.random() * (canvas.width - powerup.size * 2) + powerup.size;
+                powerup.y = Math.random() * (canvas.height - powerup.size * 2) + powerup.size;
+                powerup.active = true;
+            }
+        }
+
+        // Function to check for collision between two circles
+        function checkCollision(obj1, obj2) {
+            const dx = obj1.x - obj2.x;
+            const dy = obj1.y - obj2.y;
+            const distance = Math.sqrt(dx * dx + dy * dy);
+            return distance < (obj1.size + obj2.size); // Collision if distance is less than sum of radii
+        }
+
+        // Function to update game state (movement, laser positions, power-up)
         function update() {
             // Update player position based on keys pressed
             if (keys.w) player.y -= player.speed;
@@ -281,8 +405,14 @@
             if (keys.d) player.x += player.speed;
 
             // Keep player within canvas bounds
-            player.x = Math.max(player.size / 2, Math.min(canvas.width - player.size / 2, player.x));
-            player.y = Math.max(player.size / 2, Math.min(canvas.height - player.size / 2, player.y));
+            player.x = Math.max(player.size * 0.7, Math.min(canvas.width - player.size * 0.7, player.x));
+            player.y = Math.max(player.size * 0.5, Math.min(canvas.height - player.size * 0.5, player.y));
+
+
+            // If mouse is down, continuously try to shoot
+            if (mouse.isMouseDown) {
+                shootLaser();
+            }
 
             // Update laser positions
             for (let i = lasers.length - 1; i >= 0; i--) {
@@ -293,6 +423,21 @@
                 // Remove lasers that are off-screen
                 if (laser.x < 0 || laser.x > canvas.width || laser.y < 0 || laser.y > canvas.height) {
                     lasers.splice(i, 1);
+                }
+            }
+
+            // Power-up logic
+            if (!powerup.active && (performance.now() - powerup.lastCollectedTime > powerup.spawnDelay)) {
+                spawnPowerup(); // Spawn if not active and delay passed
+            }
+
+            if (powerup.active) {
+                // Check for collision with player
+                // Note: Using player.size as an approximation for frog's collision radius
+                if (checkCollision(player, {x: powerup.x, y: powerup.y, size: powerup.size})) {
+                    activateRapidFire(5000); // Activate for 5 seconds
+                    powerup.active = false; // Deactivate power-up
+                    powerup.lastCollectedTime = performance.now(); // Record collection time
                 }
             }
         }
@@ -315,6 +460,9 @@
                 ctx.arc(laser.x, laser.y, laser.size, 0, Math.PI * 2);
                 ctx.fill();
             });
+
+            // Draw power-up
+            drawPowerup();
         }
 
         // Main game loop
@@ -326,6 +474,8 @@
 
         // Start the game loop when the window loads
         window.onload = function () {
+            // Initial spawn of power-up after a short delay
+            setTimeout(spawnPowerup, 1000);
             gameLoop();
         };
     </script>
