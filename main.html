@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Laser Shooter Game</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden; /* Prevent scrollbars */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background-color: #1a1a2e; /* Dark background */
+            font-family: 'Inter', sans-serif;
+            color: #e0e0e0;
+        }
+
+        canvas {
+            background-color: #0f0f1a; /* Slightly lighter dark for game area */
+            display: block;
+            border: 2px solid #00bfff; /* Neon blue border */
+            border-radius: 15px; /* Rounded corners for the game area */
+            box-shadow: 0 0 20px rgba(0, 191, 255, 0.7); /* Glow effect */
+            touch-action: none; /* Prevent default touch actions like scrolling/zooming */
+        }
+
+        .game-container {
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+            background-color: #2e003a; /* Darker background for the container */
+            border-radius: 20px;
+            box-shadow: 0 0 30px rgba(138, 43, 226, 0.5); /* Purple glow */
+        }
+
+        h1 {
+            color: #e0e0e0;
+            margin-bottom: 20px;
+            text-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
+        }
+
+        .controls-info {
+            margin-top: 15px;
+            font-size: 0.9em;
+            color: #cccccc;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="game-container">
+        <h1>Laser Shooter</h1>
+        <canvas id="gameCanvas"></canvas>
+        <div class="controls-info">
+            <p><strong>Controls:</strong></p>
+            <p>Move: <strong>W A S D</strong></p>
+            <p>Aim: <strong>Mouse</strong></p>
+            <p>Shoot: <strong>Left Click</strong></p>
+        </div>
+    </div>
+
+    <script>
+        // Get the canvas element and its 2D rendering context
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // Set canvas dimensions (responsive)
+        const setCanvasSize = () => {
+            canvas.width = Math.min(window.innerWidth * 0.9, 800); // Max 800px width
+            canvas.height = Math.min(window.innerHeight * 0.7, 600); // Max 600px height
+        };
+        setCanvasSize(); // Set initial size
+        window.addEventListener('resize', setCanvasSize); // Adjust on resize
+
+        // Player properties
+        const player = {
+            x: canvas.width / 2,
+            y: canvas.height / 2,
+            size: 30,
+            speed: 5,
+            color: '#00ff7f' // Neon green
+        };
+
+        // Reticle properties
+        const reticle = {
+            x: player.x,
+            y: player.y,
+            size: 10,
+            color: '#ff00ff' // Neon magenta
+        };
+
+        // Array to hold active lasers
+        const lasers = [];
+
+        // Laser properties
+        const laserSpeed = 10;
+        const laserColor = '#00ffff'; // Cyan
+        const laserSize = 5;
+
+        // Keyboard input state
+        const keys = {
+            w: false,
+            a: false,
+            s: false,
+            d: false
+        };
+
+        // Mouse input state
+        let mouse = {
+            x: 0,
+            y: 0,
+            isMouseDown: false
+        };
+
+        // --- Event Listeners ---
+
+        // Keyboard input
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'w' || e.key === 'W') keys.w = true;
+            if (e.key === 'a' || e.key === 'A') keys.a = true;
+            if (e.key === 's' || e.key === 'S') keys.s = true;
+            if (e.key === 'd' || e.key === 'D') keys.d = true;
+        });
+
+        document.addEventListener('keyup', (e) => {
+            if (e.key === 'w' || e.key === 'W') keys.w = false;
+            if (e.key === 'a' || e.key === 'A') keys.a = false;
+            if (e.key === 's' || e.key === 'S') keys.s = false;
+            if (e.key === 'd' || e.key === 'D') keys.d = false;
+        });
+
+        // Mouse movement for reticle
+        canvas.addEventListener('mousemove', (e) => {
+            // Get mouse position relative to the canvas
+            const rect = canvas.getBoundingClientRect();
+            reticle.x = e.clientX - rect.left;
+            reticle.y = e.clientY - rect.top;
+        });
+
+        // Mouse click for shooting
+        canvas.addEventListener('mousedown', (e) => {
+            if (e.button === 0) { // Left mouse button
+                mouse.isMouseDown = true;
+                shootLaser();
+            }
+        });
+
+        canvas.addEventListener('mouseup', (e) => {
+            if (e.button === 0) {
+                mouse.isMouseDown = false;
+            }
+        });
+
+        // Touch events for mobile (basic movement and shooting)
+        // This provides very basic touch support. For a full mobile game,
+        // you'd typically implement on-screen joysticks/buttons.
+        let touchStartX = 0;
+        let touchStartY = 0;
+        let touchMoveX = 0;
+        let touchMoveY = 0;
+
+        canvas.addEventListener('touchstart', (e) => {
+            e.preventDefault(); // Prevent scrolling/zooming
+            const touch = e.touches[0];
+            const rect = canvas.getBoundingClientRect();
+            touchStartX = touch.clientX - rect.left;
+            touchStartY = touch.clientY - rect.top;
+
+            // Simple tap to shoot
+            shootLaser();
+        });
+
+        canvas.addEventListener('touchmove', (e) => {
+            e.preventDefault();
+            const touch = e.touches[0];
+            const rect = canvas.getBoundingClientRect();
+            touchMoveX = touch.clientX - rect.left;
+            touchMoveY = touch.clientY - rect.top;
+
+            // Update reticle position based on touch move
+            reticle.x = touchMoveX;
+            reticle.y = touchMoveY;
+
+            // Simple player movement based on touch drag relative to player
+            const dx = touchMoveX - player.x;
+            const dy = touchMoveY - player.y;
+
+            // Normalize direction for movement
+            const angle = Math.atan2(dy, dx);
+            keys.d = Math.abs(Math.cos(angle)) > 0.5 && Math.cos(angle) > 0;
+            keys.a = Math.abs(Math.cos(angle)) > 0.5 && Math.cos(angle) < 0;
+            keys.s = Math.abs(Math.sin(angle)) > 0.5 && Math.sin(angle) > 0;
+            keys.w = Math.abs(Math.sin(angle)) > 0.5 && Math.sin(angle) < 0;
+        });
+
+        canvas.addEventListener('touchend', (e) => {
+            // Stop movement when touch ends
+            keys.w = keys.a = keys.s = keys.d = false;
+        });
+
+
+        // --- Game Functions ---
+
+        // Function to draw the player
+        function drawPlayer() {
+            ctx.fillStyle = player.color;
+            ctx.beginPath();
+            // Draw a triangle for the player, pointing towards the reticle
+            const angleToReticle = Math.atan2(reticle.y - player.y, reticle.x - player.x);
+            const halfSize = player.size / 2;
+
+            // Calculate points of the triangle
+            const p1x = player.x + halfSize * Math.cos(angleToReticle);
+            const p1y = player.y + halfSize * Math.sin(angleToReticle);
+
+            const p2x = player.x + halfSize * Math.cos(angleToReticle + (2 * Math.PI / 3));
+            const p2y = player.y + halfSize * Math.sin(angleToReticle + (2 * Math.PI / 3));
+
+            const p3x = player.x + halfSize * Math.cos(angleToReticle - (2 * Math.PI / 3));
+            const p3y = player.y + halfSize * Math.sin(angleToReticle - (2 * Math.PI / 3));
+
+            ctx.moveTo(p1x, p1y);
+            ctx.lineTo(p2x, p2y);
+            ctx.lineTo(p3x, p3y);
+            ctx.closePath();
+            ctx.fill();
+        }
+
+        // Function to draw the reticle
+        function drawReticle() {
+            ctx.strokeStyle = reticle.color;
+            ctx.lineWidth = 2;
+
+            // Draw a crosshair reticle
+            ctx.beginPath();
+            ctx.moveTo(reticle.x - reticle.size, reticle.y);
+            ctx.lineTo(reticle.x + reticle.size, reticle.y);
+            ctx.moveTo(reticle.x, reticle.y - reticle.size);
+            ctx.lineTo(reticle.x, reticle.y + reticle.size);
+            ctx.stroke();
+
+            // Draw a small circle in the center
+            ctx.beginPath();
+            ctx.arc(reticle.x, reticle.y, reticle.size / 3, 0, Math.PI * 2);
+            ctx.stroke();
+        }
+
+        // Function to shoot a laser
+        function shootLaser() {
+            // Calculate direction vector from player to reticle
+            const dx = reticle.x - player.x;
+            const dy = reticle.y - player.y;
+            const distance = Math.sqrt(dx * dx + dy * dy);
+
+            // Normalize the direction vector
+            const dirX = dx / distance;
+            const dirY = dy / distance;
+
+            // Add a new laser to the array
+            lasers.push({
+                x: player.x,
+                y: player.y,
+                dirX: dirX,
+                dirY: dirY,
+                color: laserColor,
+                size: laserSize
+            });
+        }
+
+        // Function to update game state (movement, laser positions)
+        function update() {
+            // Update player position based on keys pressed
+            if (keys.w) player.y -= player.speed;
+            if (keys.s) player.y += player.speed;
+            if (keys.a) player.x -= player.speed;
+            if (keys.d) player.x += player.speed;
+
+            // Keep player within canvas bounds
+            player.x = Math.max(player.size / 2, Math.min(canvas.width - player.size / 2, player.x));
+            player.y = Math.max(player.size / 2, Math.min(canvas.height - player.size / 2, player.y));
+
+            // Update laser positions
+            for (let i = lasers.length - 1; i >= 0; i--) {
+                const laser = lasers[i];
+                laser.x += laser.dirX * laserSpeed;
+                laser.y += laser.dirY * laserSpeed;
+
+                // Remove lasers that are off-screen
+                if (laser.x < 0 || laser.x > canvas.width || laser.y < 0 || laser.y > canvas.height) {
+                    lasers.splice(i, 1);
+                }
+            }
+        }
+
+        // Function to draw everything on the canvas
+        function draw() {
+            // Clear the canvas
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Draw player
+            drawPlayer();
+
+            // Draw reticle
+            drawReticle();
+
+            // Draw lasers
+            lasers.forEach(laser => {
+                ctx.fillStyle = laser.color;
+                ctx.beginPath();
+                ctx.arc(laser.x, laser.y, laser.size, 0, Math.PI * 2);
+                ctx.fill();
+            });
+        }
+
+        // Main game loop
+        function gameLoop() {
+            update(); // Update game state
+            draw();   // Draw everything
+            requestAnimationFrame(gameLoop); // Request next frame
+        }
+
+        // Start the game loop when the window loads
+        window.onload = function () {
+            gameLoop();
+        };
+    </script>
+</body>
+</html>
