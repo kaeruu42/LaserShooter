@@ -60,8 +60,6 @@
             flex-wrap: wrap; /* Allow items to wrap on smaller screens */
         }
 
-        /* Removed .bottom-hud styles as it's no longer used */
-
         .hud-item {
             background-color: #444;
             padding: 5px 10px; /* Scaled down padding */
@@ -119,7 +117,6 @@
         .weapon-selector {
             display: flex;
             gap: 8px; /* Scaled down space between weapon icons */
-            /* margin-top: 10px; Removed as it's now in top-hud */
             flex-wrap: wrap;
             justify-content: center;
         }
@@ -193,6 +190,21 @@
             text-shadow: 0 0 20px rgba(0, 191, 255, 0.8);
             margin-bottom: 40px;
             text-align: center;
+        }
+
+        #controlStyleSelection, #autoShootSelection {
+            margin-bottom: 20px;
+            text-align: center;
+            font-size: 1.1em;
+        }
+
+        #controlStyleSelection label, #autoShootSelection label {
+            margin: 0 15px;
+            cursor: pointer;
+        }
+
+        #controlStyleSelection input[type="radio"], #autoShootSelection input[type="checkbox"] {
+            margin-right: 5px;
         }
 
         #startButton {
@@ -269,6 +281,51 @@
             box-shadow: 0 3px 10px rgba(0, 191, 255, 0.3);
         }
 
+        /* 8-Direction Touch Overlay */
+        #touchMovementOverlay {
+            position: absolute;
+            bottom: 20px; /* Position at the bottom */
+            left: 50%;
+            transform: translateX(-50%);
+            width: 150px; /* Size of the overlay */
+            height: 150px;
+            background-color: rgba(0, 0, 0, 0.4); /* Partially transparent black */
+            border-radius: 50%; /* Make it circular */
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            grid-template-rows: repeat(3, 1fr);
+            opacity: 0; /* Hidden by default */
+            transition: opacity 0.3s ease;
+            pointer-events: none; /* Allow clicks to pass through when hidden */
+            z-index: 15; /* Above canvas, below title/game over */
+        }
+
+        #touchMovementOverlay.active {
+            opacity: 1; /* Visible when active */
+            pointer-events: all; /* Enable interaction when active */
+        }
+
+        #touchMovementOverlay > div {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 1.5em;
+            color: rgba(255, 255, 255, 0.7);
+            user-select: none; /* Prevent text selection on touch */
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+        }
+        /* Specific grid areas for arrows */
+        #touchMovementOverlay .up { grid-area: 1 / 2 / 2 / 3; }
+        #touchMovementOverlay .up-left { grid-area: 1 / 1 / 2 / 2; }
+        #touchMovementOverlay .up-right { grid-area: 1 / 3 / 2 / 4; }
+        #touchMovementOverlay .left { grid-area: 2 / 1 / 3 / 2; }
+        #touchMovementOverlay .right { grid-area: 2 / 3 / 3 / 4; }
+        #touchMovementOverlay .down-left { grid-area: 3 / 1 / 4 / 2; }
+        #touchMovementOverlay .down { grid-area: 3 / 2 / 4 / 3; }
+        #touchMovementOverlay .down-right { grid-area: 3 / 3 / 4 / 4; }
+
         /* Media query for smaller screens to collapse title and scale HUD */
         @media (max-width: 600px) {
             h1 {
@@ -309,6 +366,12 @@
             .controls-info p {
                 font-size: 0.8em;
             }
+
+            #touchMovementOverlay {
+                width: 120px;
+                height: 120px;
+                bottom: 10px;
+            }
         }
     </style>
 </head>
@@ -319,6 +382,20 @@
         <!-- Title Screen -->
         <div id="titleScreen">
             <h2>Ruin Delvers 2: Investigation of the Divine</h2>
+            <div id="controlStyleSelection">
+                <p>Choose Control Style:</p>
+                <label>
+                    <input type="radio" name="controlStyle" value="pc" checked> PC-style
+                </slabel>
+                <label>
+                    <input type="radio" name="controlStyle" value="phone"> Phone-style
+                </label>
+            </div>
+            <div id="autoShootSelection">
+                <label>
+                    <input type="checkbox" id="autoShootToggle"> Auto-Shoot
+                </label>
+            </div>
             <button id="startButton">Start Game</button>
         </div>
 
@@ -327,12 +404,11 @@
                 <div id="healthBarInner" class="health-bar-inner"></div>
                 <span id="healthBarText" class="health-bar-text">Health: 100/100</span>
             </div>
-            <div id="weaponSelectorContainer" class="weapon-selector"></div> <!-- Moved here -->
+            <div id="weaponSelectorContainer" class="weapon-selector"></div>
             <div id="timerDisplay" class="hud-item timer-display">Time: 2:00</div>
             <div id="expDisplay" class="hud-item exp-display">EXP: 0</div>
         </div>
         <canvas id="gameCanvas"></canvas>
-        <!-- Removed .bottom-hud as it's no longer needed -->
         <div class="controls-info">
             <p><strong>Controls:</strong></p>
             <p>Move: <strong>W A S D</strong></p>
@@ -342,6 +418,19 @@
         </div>
         <div id="powerupStatus" class="powerup-status" style="display: none;">
             RAPID FIRE ACTIVE!
+        </div>
+
+        <!-- 8-Direction Touch Movement Overlay -->
+        <div id="touchMovementOverlay">
+            <div class="up-left">↖</div>
+            <div class="up">⬆</div>
+            <div class="up-right">↗</div>
+            <div class="left">⬅</div>
+            <div class="center"></div> <!-- Center for no movement -->
+            <div class="right">➡</div>
+            <div class="down-left">↙</div>
+            <div class="down">⬇</div>
+            <div class="down-right">↘</div>
         </div>
 
         <!-- Game Over Screen -->
@@ -375,9 +464,13 @@
         const titleScreen = document.getElementById('titleScreen');
         const startButton = document.getElementById('startButton');
         const gameTitle = document.getElementById('gameTitle'); // Get the main game title element
+        const controlStyleRadios = document.querySelectorAll('input[name="controlStyle"]');
+        const autoShootToggle = document.getElementById('autoShootToggle'); // New auto-shoot toggle
 
+        // Touch Movement Overlay elements
+        const touchMovementOverlay = document.getElementById('touchMovementOverlay');
 
-        // Player properties (MOVED TO TOP)
+        // Player properties
         const player = {
             x: 0, // Initialized to 0, will be set correctly by setCanvasSize
             y: 0, // Initialized to 0, will be set correctly by setCanvasSize
@@ -388,7 +481,7 @@
             maxHealth: 100
         };
 
-        // Reticle properties (MOVED TO TOP)
+        // Reticle properties
         const reticle = {
             x: 0, // Initialized to 0, will be set correctly by setCanvasSize
             y: 0, // Initialized to 0, will be set correctly by setCanvasSize
@@ -399,6 +492,8 @@
         // Game state variables
         let gameState = 'title'; // 'title', 'playing', 'gameOver', or 'win'
         let score = 0;
+        let currentControlStyle = 'pc'; // Default control style
+        let autoShootingEnabled = false; // New state for auto-shooting
 
         // Set canvas dimensions (responsive)
         const setCanvasSize = () => {
@@ -411,8 +506,6 @@
             reticle.x = player.x; // Reticle starts at player position
             reticle.y = player.y;
         };
-        // setCanvasSize() is called in window.onload now to ensure player is defined.
-        // window.addEventListener('resize', setCanvasSize); // Adjust on resize - this should be called after initial setup
 
         // Array to hold active lasers (now projectiles)
         const projectiles = [];
@@ -648,68 +741,105 @@
         // Mouse click for shooting (continuous firing handled in gameLoop)
         canvas.addEventListener('mousedown', (e) => {
             if (gameState !== 'playing') return; // Only allow input when playing
-            if (e.button === 0) { // Left mouse button
+            if (!autoShootingEnabled && e.button === 0) { // Only if auto-shooting is OFF and left click
                 mouse.isMouseDown = true;
             }
         });
 
         canvas.addEventListener('mouseup', (e) => {
             if (gameState !== 'playing') return; // Only allow input when playing
-            if (e.button === 0) {
+            if (!autoShootingEnabled && e.button === 0) { // Only if auto-shooting is OFF and left click
                 mouse.isMouseDown = false;
             }
         });
 
-        // Touch events for mobile (basic movement and shooting)
-        // This provides very basic touch support. For a full mobile game,
-        // you'd typically implement on-screen joysticks/buttons.
-        let touchStartX = 0;
-        let touchStartY = 0;
-        let touchMoveX = 0;
-        let touchMoveY = 0;
-
+        // Touch events for mobile
         canvas.addEventListener('touchstart', (e) => {
-            if (gameState !== 'playing') return; // Only allow input when playing
+            if (gameState !== 'playing') return;
             e.preventDefault(); // Prevent scrolling/zooming
             const touch = e.touches[0];
             const rect = canvas.getBoundingClientRect();
-            touchStartX = touch.clientX - rect.left;
-            touchStartY = touch.clientY - rect.top;
-
-            // Activate continuous firing on touch start
-            mouse.isMouseDown = true;
+            reticle.x = touch.clientX - rect.left; // Update reticle on touch
+            reticle.y = touch.clientY - rect.top;
+            
+            if (currentControlStyle === 'pc' && !autoShootingEnabled) { // For PC-style, if auto-shoot is OFF
+                mouse.isMouseDown = true; // Activate continuous firing on touch start
+            }
         });
 
         canvas.addEventListener('touchmove', (e) => {
-            if (gameState !== 'playing') return; // Only allow input when playing
+            if (gameState !== 'playing') return;
             e.preventDefault();
             const touch = e.touches[0];
             const rect = canvas.getBoundingClientRect();
-            touchMoveX = touch.clientX - rect.left;
-            touchMoveY = touch.clientY - rect.top;
+            reticle.x = touch.clientX - rect.left; // Update reticle position based on touch move
+            reticle.y = touch.clientY - rect.top;
 
-            // Update reticle position based on touch move
-            reticle.x = touchMoveX;
-            reticle.y = touchMoveY;
+            if (currentControlStyle === 'pc') { // Only PC-style uses touch for player movement
+                // Simple player movement based on touch drag relative to player
+                const dx = (touch.clientX - rect.left) - player.x;
+                const dy = (touch.clientY - rect.top) - player.y;
 
-            // Simple player movement based on touch drag relative to player
-            const dx = touchMoveX - player.x;
-            const dy = touchMoveY - player.y;
-
-            // Normalize direction for movement
-            const angle = Math.atan2(dy, dx);
-            keys.d = Math.abs(Math.cos(angle)) > 0.5 && Math.cos(angle) > 0;
-            keys.a = Math.abs(Math.cos(angle)) > 0.5 && Math.cos(angle) < 0;
-            keys.s = Math.abs(Math.sin(angle)) > 0.5 && Math.sin(angle) > 0;
-            keys.w = Math.abs(Math.sin(angle)) > 0.5 && Math.sin(angle) < 0;
+                // Normalize direction for movement
+                const angle = Math.atan2(dy, dx);
+                keys.d = Math.abs(Math.cos(angle)) > 0.5 && Math.cos(angle) > 0;
+                keys.a = Math.abs(Math.cos(angle)) > 0.5 && Math.cos(angle) < 0;
+                keys.s = Math.abs(Math.sin(angle)) > 0.5 && Math.sin(angle) > 0;
+                keys.w = Math.abs(Math.sin(angle)) > 0.5 && Math.sin(angle) < 0;
+            }
         });
 
         canvas.addEventListener('touchend', (e) => {
-            if (gameState !== 'playing') return; // Only allow input when playing
-            // Stop movement and firing when touch ends
-            keys.w = keys.a = keys.s = keys.d = false;
-            mouse.isMouseDown = false;
+            if (gameState !== 'playing') return;
+            if (currentControlStyle === 'pc' && !autoShootingEnabled) { // For PC-style, if auto-shoot is OFF
+                keys.w = keys.a = keys.s = keys.d = false; // Stop movement
+                mouse.isMouseDown = false; // Stop firing
+            }
         });
+
+        // Touch movement overlay listeners (for Phone-style)
+        touchMovementOverlay.addEventListener('touchstart', (e) => {
+            if (gameState !== 'playing' || currentControlStyle !== 'phone') return;
+            e.preventDefault();
+            const touch = e.touches[0];
+            const rect = touchMovementOverlay.getBoundingClientRect();
+            const x = touch.clientX - rect.left;
+            const y = touch.clientY - rect.top;
+            handleTouchMovement(x, y, rect.width, rect.height);
+        });
+
+        touchMovementOverlay.addEventListener('touchmove', (e) => {
+            if (gameState !== 'playing' || currentControlStyle !== 'phone') return;
+            e.preventDefault();
+            const touch = e.touches[0];
+            const rect = touchMovementOverlay.getBoundingClientRect();
+            const x = touch.clientX - rect.left;
+            const y = touch.clientY - rect.top;
+            handleTouchMovement(x, y, rect.width, rect.height);
+        });
+
+        touchMovementOverlay.addEventListener('touchend', (e) => {
+            if (gameState !== 'playing' || currentControlStyle !== 'phone') return;
+            e.preventDefault();
+            keys.w = keys.a = keys.s = keys.d = false; // Stop movement
+        });
+
+        function handleTouchMovement(x, y, width, height) {
+            // Determine direction based on touch position within the 3x3 grid
+            const col = Math.floor(x / (width / 3));
+            const row = Math.floor(y / (height / 3));
+
+            keys.w = false;
+            keys.a = false;
+            keys.s = false;
+            keys.d = false;
+
+            if (row === 0) keys.w = true; // Top row: Up
+            if (row === 2) keys.s = true; // Bottom row: Down
+            if (col === 0) keys.a = true; // Left column: Left
+            if (col === 2) keys.d = true; // Right column: Right
+        }
+
 
         // Restart button listener (now "Back to Title")
         restartButton.addEventListener('click', () => {
@@ -718,6 +848,8 @@
             // Show title screen and game title
             titleScreen.style.display = 'flex';
             gameTitle.style.display = 'block'; // Show the main game title
+            // Hide touch movement overlay
+            touchMovementOverlay.classList.remove('active');
             gameState = 'title'; // Set game state back to title
         });
 
@@ -1240,7 +1372,11 @@
             powerup.active = false; // Deactivate power-up
             currentWeaponIndex = 0; // Reset to default weapon
             currentWeapon = weapons[currentWeaponIndex];
-            currentFireRate = baseFireRate; // Reset fire rate
+            
+            // Set initial fire rate based on new auto-shooting toggle
+            currentFireRate = currentWeapon.fireRateFactor * baseFireRate;
+            mouse.isMouseDown = autoShootingEnabled; // Set shooting state based on toggle
+
             rapidFireActive = false;
             if (rapidFireTimeoutId) clearTimeout(rapidFireTimeoutId);
             powerupStatus.style.display = 'none';
@@ -1258,18 +1394,31 @@
 
         // Function to start the game from the title screen
         function startGame() {
+            // Get selected control style and auto-shoot preference
+            currentControlStyle = document.querySelector('input[name="controlStyle"]:checked').value;
+            autoShootingEnabled = autoShootToggle.checked;
+            console.log("Selected Control Style:", currentControlStyle);
+            console.log("Auto-Shooting Enabled:", autoShootingEnabled);
+
             titleScreen.style.display = 'none'; // Hide title screen
             gameTitle.style.display = 'none'; // Hide the main game title when playing
+            
             // Show game elements
             const topHud = document.querySelector('.top-hud');
             const controlsInfo = document.querySelector('.controls-info');
 
             topHud.style.display = 'flex';
-            // bottomHud is removed, so no need to set its display
-            controlsInfo.style.display = 'block';
-            canvas.style.display = 'block';
+            
+            // Show/hide touch movement overlay and controls info based on control style
+            if (currentControlStyle === 'phone') {
+                touchMovementOverlay.classList.add('active');
+                controlsInfo.style.display = 'none'; // Hide text controls info for phone style
+            } else {
+                touchMovementOverlay.classList.remove('active');
+                controlsInfo.style.display = 'block'; // Show text controls info for PC style
+            }
 
-            console.log("topHud display after startGame:", topHud.style.display); // Debugging line for topHud
+            canvas.style.display = 'block';
 
             resetGame(); // Reset and start the game
         }
@@ -1290,10 +1439,10 @@
                 gameOverScreen.style.display = 'flex';
                 // Hide game elements when game is over/won
                 document.querySelector('.top-hud').style.display = 'none';
-                // document.querySelector('.bottom-hud').style.display = 'none'; // Removed
                 document.querySelector('.controls-info').style.display = 'none';
                 canvas.style.display = 'none';
                 gameTitle.style.display = 'block'; // Show title again on game over/win
+                touchMovementOverlay.classList.remove('active'); // Hide touch overlay
                 return; // Stop updating game state
             }
 
@@ -1521,10 +1670,10 @@
                         gameOverScreen.style.display = 'flex'; // Show game over screen
                         // Hide game elements when game is over/won
                         document.querySelector('.top-hud').style.display = 'none';
-                        // document.querySelector('.bottom-hud').style.display = 'none'; // Removed
                         document.querySelector('.controls-info').style.display = 'none';
                         canvas.style.display = 'none';
                         gameTitle.style.display = 'block'; // Show title again on game over/win
+                        touchMovementOverlay.classList.remove('active'); // Hide touch overlay
                     }
                     continue; // Skip projectile collision check for this enemy as it's removed
                 }
@@ -1664,11 +1813,11 @@
 
             // Initially hide game elements and show title screen
             document.querySelector('.top-hud').style.display = 'none';
-            // document.querySelector('.bottom-hud').style.display = 'none'; // Removed as the div is removed
             document.querySelector('.controls-info').style.display = 'none';
             canvas.style.display = 'none';
             titleScreen.style.display = 'flex'; // Ensure title screen is visible
             gameTitle.style.display = 'block'; // Ensure the main game title is visible initially
+            touchMovementOverlay.classList.remove('active'); // Ensure touch overlay is hidden initially
 
             gameLoop(); // Start the loop, but it will only update/draw if gameState is 'playing'
         };
