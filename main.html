@@ -18,6 +18,20 @@
             color: #e0e0e0;
         }
 
+        .game-container {
+            position: relative;
+            display: flex;
+            flex-direction: column; /* Arrange children vertically */
+            align-items: center; /* Center children horizontally */
+            padding: 20px;
+            background-color: #2e003a; /* Darker background for the container */
+            border-radius: 20px;
+            box-shadow: 0 0 30px rgba(138, 43, 226, 0.5); /* Purple glow */
+            max-width: 90%; /* Responsive width */
+            max-height: 90vh; /* Responsive height */
+            box-sizing: border-box; /* Include padding in width/height */
+        }
+
         canvas {
             background-color: #0f0f1a; /* Slightly lighter dark for game area */
             display: block;
@@ -25,23 +39,113 @@
             border-radius: 15px; /* Rounded corners for the game area */
             box-shadow: 0 0 20px rgba(0, 191, 255, 0.7); /* Glow effect */
             touch-action: none; /* Prevent default touch actions like scrolling/zooming */
-        }
-
-        .game-container {
-            position: relative;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            padding: 20px;
-            background-color: #2e003a; /* Darker background for the container */
-            border-radius: 20px;
-            box-shadow: 0 0 30px rgba(138, 43, 226, 0.5); /* Purple glow */
+            margin: 10px 0; /* Space between HUD and canvas */
+            flex-shrink: 0; /* Prevent canvas from shrinking */
         }
 
         h1 {
             color: #e0e0e0;
-            margin-bottom: 20px;
+            margin-bottom: 10px; /* Reduced margin */
             text-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
+            font-size: 2em; /* Adjust size for better fit */
+        }
+
+        .top-hud, .bottom-hud {
+            width: 100%;
+            display: flex;
+            justify-content: space-around; /* Distribute items */
+            align-items: center;
+            padding: 5px 0;
+            box-sizing: border-box;
+            flex-wrap: wrap; /* Allow items to wrap on smaller screens */
+        }
+
+        .hud-item {
+            background-color: #444;
+            padding: 8px 15px;
+            border-radius: 8px;
+            margin: 5px; /* Space between HUD items */
+            font-size: 1.1em;
+            font-weight: bold;
+            color: #eee;
+            min-width: 100px; /* Ensure minimum width for readability */
+            text-align: center;
+        }
+
+        .health-bar-container {
+            width: 180px; /* Fixed width for the bar itself */
+            height: 20px;
+            background-color: #555;
+            border-radius: 5px;
+            overflow: hidden;
+            border: 1px solid #fff;
+            margin: 5px;
+            display: flex; /* To center text inside */
+            align-items: center;
+            justify-content: center;
+            position: relative;
+        }
+
+        .health-bar-inner {
+            height: 100%;
+            background-color: #FF0000;
+            width: 100%; /* Will be set by JS */
+            transition: width 0.1s linear;
+            position: absolute;
+            left: 0;
+            top: 0;
+        }
+
+        .health-bar-text {
+            position: relative; /* To be on top of the inner bar */
+            color: #fff;
+            font-size: 0.9em;
+            z-index: 1;
+        }
+
+        .timer-display {
+            color: #00ff7f; /* Neon green for timer */
+            font-size: 1.5em; /* Larger for timer */
+            text-shadow: 0 0 8px rgba(0, 255, 127, 0.6);
+        }
+
+        .exp-display {
+            color: #ffd700; /* Gold for EXP */
+            text-shadow: 0 0 8px rgba(255, 215, 0, 0.6);
+        }
+
+        .weapon-selector {
+            display: flex;
+            gap: 10px; /* Space between weapon icons */
+            margin-top: 10px; /* Space from canvas */
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .weapon-icon {
+            width: 45px;
+            height: 45px;
+            background-color: #333;
+            border: 2px solid #555;
+            border-radius: 10px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 1.8em; /* Larger emoji size */
+            cursor: pointer;
+            transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.1s ease;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
+        }
+
+        .weapon-icon:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.5);
+        }
+
+        .weapon-icon.selected {
+            border-color: #00ff7f; /* Neon green highlight */
+            box-shadow: 0 0 15px rgba(0, 255, 127, 0.7);
+            transform: scale(1.05);
         }
 
         .controls-info {
@@ -49,6 +153,9 @@
             font-size: 0.9em;
             color: #cccccc;
             text-align: center;
+            width: 100%;
+            padding: 10px;
+            box-sizing: border-box;
         }
 
         .powerup-status {
@@ -57,6 +164,8 @@
             color: #00ff7f; /* Neon green for active status */
             font-weight: bold;
             text-shadow: 0 0 8px rgba(0, 255, 127, 0.6);
+            text-align: center;
+            width: 100%;
         }
 
         .game-over-screen {
@@ -76,6 +185,7 @@
             text-shadow: 0 0 15px rgba(255, 0, 0, 0.7); /* Red glow for game over */
             border-radius: 15px; /* Match canvas border radius */
             z-index: 10; /* Ensure it's on top */
+            text-align: center;
         }
 
         .game-over-screen p {
@@ -111,7 +221,18 @@
 <body>
     <div class="game-container">
         <h1>Laser Shooter</h1>
+        <div class="top-hud">
+            <div class="hud-item health-bar-container">
+                <div id="healthBarInner" class="health-bar-inner"></div>
+                <span id="healthBarText" class="health-bar-text">Health: 100/100</span>
+            </div>
+            <div id="timerDisplay" class="hud-item timer-display">Time: 2:00</div>
+            <div id="expDisplay" class="hud-item exp-display">EXP: 0</div>
+        </div>
         <canvas id="gameCanvas"></canvas>
+        <div class="bottom-hud">
+            <div id="weaponSelectorContainer" class="weapon-selector"></div>
+        </div>
         <div class="controls-info">
             <p><strong>Controls:</strong></p>
             <p>Move: <strong>W A S D</strong></p>
@@ -126,7 +247,7 @@
         <!-- Game Over Screen -->
         <div id="gameOverScreen" class="game-over-screen" style="display: none;">
             <p id="gameOverMessage">GAME OVER!</p>
-            <p>Final Score: <span id="finalScore">0</span></p>
+            <p>Final EXP: <span id="finalScore">0</span></p>
             <button id="restartButton" class="restart-button">Restart Game</button>
         </div>
     </div>
@@ -143,6 +264,32 @@
         const restartButton = document.getElementById('restartButton');
         const gameOverMessage = document.getElementById('gameOverMessage');
 
+        // New HUD DOM elements
+        const healthBarInner = document.getElementById('healthBarInner');
+        const healthBarText = document.getElementById('healthBarText');
+        const timerDisplay = document.getElementById('timerDisplay');
+        const expDisplay = document.getElementById('expDisplay');
+        const weaponSelectorContainer = document.getElementById('weaponSelectorContainer');
+
+        // Player properties (MOVED TO TOP)
+        const player = {
+            x: 0, // Initialized to 0, will be set correctly by setCanvasSize
+            y: 0, // Initialized to 0, will be set correctly by setCanvasSize
+            size: 30, // Base size for the frog
+            speed: 5,
+            color: '#32CD32', // Lime Green for the frog
+            health: 100,
+            maxHealth: 100
+        };
+
+        // Reticle properties (MOVED TO TOP)
+        const reticle = {
+            x: 0, // Initialized to 0, will be set correctly by setCanvasSize
+            y: 0, // Initialized to 0, will be set correctly by setCanvasSize
+            size: 10,
+            color: '#ff00ff' // Neon magenta
+        };
+
         // Game state variables
         let gameState = 'playing'; // 'playing', 'gameOver', or 'win'
         let score = 0;
@@ -151,28 +298,15 @@
         const setCanvasSize = () => {
             canvas.width = Math.min(window.innerWidth * 0.9, 800); // Max 800px width
             canvas.height = Math.min(window.innerHeight * 0.7, 600); // Max 600px height
+            
+            // Re-center player and reticle if canvas size changes
+            player.x = canvas.width / 2;
+            player.y = canvas.height / 2;
+            reticle.x = player.x; // Reticle starts at player position
+            reticle.y = player.y;
         };
-        setCanvasSize(); // Set initial size
-        window.addEventListener('resize', setCanvasSize); // Adjust on resize
-
-        // Player properties
-        const player = {
-            x: canvas.width / 2,
-            y: canvas.height / 2,
-            size: 30, // Base size for the frog
-            speed: 5,
-            color: '#32CD32', // Lime Green for the frog
-            health: 100,
-            maxHealth: 100
-        };
-
-        // Reticle properties
-        const reticle = {
-            x: player.x,
-            y: player.y,
-            size: 10,
-            color: '#ff00ff' // Neon magenta
-        };
+        // setCanvasSize() is called in window.onload now to ensure player is defined.
+        // window.addEventListener('resize', setCanvasSize); // Adjust on resize - this should be called after initial setup
 
         // Array to hold active lasers (now projectiles)
         const projectiles = [];
@@ -195,7 +329,7 @@
                     ctx.fillRect(-p.size * 2, -p.size / 2, p.size * 4, p.size); // Long thin rectangle
                     ctx.restore();
                 },
-                icon: '⚡' // Emoji icon for laser
+                icon: '•' // Bullet-like icon
             },
             {
                 name: 'electric',
@@ -296,7 +430,7 @@
 
         // Enemy properties
         const enemies = [];
-        let enemySpawnInterval = 2000; // Initial spawn interval (CHANGED TO LET)
+        let enemySpawnInterval = 2000; // Initial spawn interval
         let lastEnemySpawnTime = 0;
         const enemyBaseSpeed = 1.5; // Base speed for enemies
         const enemyBaseSize = 25; // Base size for enemies
@@ -321,7 +455,7 @@
 
         const minGlobalSpeedMultiplier = 1; // Base speed multiplier (at initialGameTime)
         const maxGlobalSpeedMultiplier = 2; // Max speed multiplier (at 0 seconds)
-        let currentGlobalSpeedMultiplier = minGlobalSpeedMultiplier; // (CHANGED TO LET)
+        let currentGlobalSpeedMultiplier = minGlobalSpeedMultiplier;
 
 
         // Define different enemy types with their health, size, speed, points, and AI type
@@ -882,6 +1016,7 @@
             currentWeapon = weapons[currentWeaponIndex];
             // Update fire rate based on new weapon's factor
             currentFireRate = rapidFireActive ? currentWeapon.fireRateFactor * rapidFireRate : currentWeapon.fireRateFactor * baseFireRate;
+            renderWeaponSelector(); // Update HUD
         }
 
 
@@ -969,8 +1104,12 @@
         // Function to reset game state for a new game
         function resetGame() {
             player.health = player.maxHealth;
+            // Ensure player position is set after canvas size is determined
             player.x = canvas.width / 2;
             player.y = canvas.height / 2;
+            reticle.x = player.x;
+            reticle.y = player.y;
+
             score = 0;
             enemies.length = 0; // Clear all enemies
             projectiles.length = 0; // Clear all projectiles
@@ -986,6 +1125,9 @@
             gameTimer = initialGameTime; // Reset game timer
             gameStartTime = performance.now(); // Reset game start time
             gameOverMessage.textContent = 'GAME OVER!'; // Reset message
+            
+            updateHUD(); // Initial HUD update
+            renderWeaponSelector(); // Initial weapon selector render
             // Spawn initial power-up after a short delay
             setTimeout(spawnPowerup, 1000);
         }
@@ -1129,8 +1271,8 @@
                     }
                     const move_magnitude = Math.sqrt(move_dx * move_dx + move_dy * move_dy);
                     if (move_magnitude > 0) {
-                        targetX = enemy.x + (move_dx / move_magnitude) * effectiveEnemySpeed;
-                        targetY = enemy.y + (move_dy / move_magnitude) * effectiveEnemySpeed;
+                        enemy.x += (move_dx / move_magnitude) * effectiveEnemySpeed;
+                        enemy.y += (move_dy / move_magnitude) * effectiveEnemySpeed;
                     } else {
                         // Fallback if evasion logic results in zero movement (unlikely but safe)
                         targetX = player.x;
@@ -1262,6 +1404,7 @@
                     }
                 }
             }
+            updateHUD(); // Update HUD elements in the DOM
         }
 
         // Function to draw everything on the canvas
@@ -1308,89 +1451,44 @@
                 drawEnemy(enemy); // Call the main drawEnemy function
             });
 
-            // Draw HUD
-            drawHUD();
+            // HUD is now DOM elements, no need to draw on canvas
         }
 
-        // Function to draw the HUD (Health Bar, Score, and Weapon Selector)
-        function drawHUD() {
-            // Health Bar
-            const healthBarWidth = 200;
-            const healthBarHeight = 20;
-            const healthBarX = 20;
-            const healthBarY = 20;
+        // Function to render the weapon selector in the DOM
+        function renderWeaponSelector() {
+            weaponSelectorContainer.innerHTML = ''; // Clear existing icons
+            weapons.forEach((weapon, index) => {
+                const weaponIconDiv = document.createElement('div');
+                weaponIconDiv.classList.add('weapon-icon');
+                weaponIconDiv.innerHTML = weapon.icon;
+                if (index === currentWeaponIndex) {
+                    weaponIconDiv.classList.add('selected');
+                }
+                weaponIconDiv.addEventListener('click', () => {
+                    // Allow clicking to switch weapons too
+                    currentWeaponIndex = index;
+                    currentWeapon = weapons[currentWeaponIndex];
+                    currentFireRate = rapidFireActive ? currentWeapon.fireRateFactor * rapidFireRate : currentWeapon.fireRateFactor * baseFireRate;
+                    renderWeaponSelector(); // Re-render to update highlight
+                });
+                weaponSelectorContainer.appendChild(weaponIconDiv);
+            });
+        }
 
-            // Background of health bar
-            ctx.fillStyle = '#555'; // Grey background
-            ctx.fillRect(healthBarX, healthBarY, healthBarWidth, healthBarHeight);
+        // Function to update the HUD elements in the DOM
+        function updateHUD() {
+            // Update Health Bar
+            const healthPercentage = (player.health / player.maxHealth) * 100;
+            healthBarInner.style.width = `${healthPercentage}%`;
+            healthBarText.textContent = `Health: ${player.health}/${player.maxHealth}`;
 
-            // Current health
-            const currentHealthWidth = (player.health / player.maxHealth) * healthBarWidth;
-            ctx.fillStyle = '#FF0000'; // Red for health
-            ctx.fillRect(healthBarX, healthBarY, currentHealthWidth, healthBarHeight);
+            // Update EXP
+            expDisplay.textContent = `EXP: ${score}`;
 
-            // Health bar border
-            ctx.strokeStyle = '#fff';
-            ctx.lineWidth = 2;
-            ctx.strokeRect(healthBarX, healthBarY, healthBarWidth, healthBarHeight);
-
-            // Health text
-            ctx.fillStyle = '#fff';
-            ctx.font = '16px Inter';
-            ctx.textAlign = 'left';
-            ctx.textBaseline = 'top';
-            ctx.fillText(`Health: ${player.health}/${player.maxHealth}`, healthBarX, healthBarY + healthBarHeight + 5);
-
-            // Score
-            ctx.fillStyle = '#fff';
-            ctx.font = '24px Inter';
-            ctx.textAlign = 'right';
-            ctx.textBaseline = 'top';
-            ctx.fillText(`Score: ${score}`, canvas.width - 20, 20);
-
-            // Timer
+            // Update Timer
             const minutes = Math.floor(gameTimer / 60);
             const seconds = Math.floor(gameTimer % 60).toString().padStart(2, '0');
-            ctx.fillStyle = '#fff';
-            ctx.font = '24px Inter';
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'top';
-            ctx.fillText(`Time: ${minutes}:${seconds}`, canvas.width / 2, 20);
-
-
-            // Weapon Selector
-            const weaponIconSize = 40;
-            const weaponIconPadding = 10;
-            const totalWeaponWidth = (weaponIconSize + weaponIconPadding) * weapons.length - weaponIconPadding;
-            const startX = (canvas.width / 2) - (totalWeaponWidth / 2);
-            const startY = 60; // Position below timer/score
-
-            weapons.forEach((weapon, index) => {
-                const iconX = startX + index * (weaponIconSize + weaponIconPadding);
-                const iconY = startY;
-
-                // Draw background for icon
-                ctx.fillStyle = '#333';
-                ctx.fillRect(iconX, iconY, weaponIconSize, weaponIconSize);
-
-                // Draw icon text (emoji)
-                ctx.font = `${weaponIconSize * 0.7}px Arial`; // Use Arial for emojis
-                ctx.textAlign = 'center';
-                ctx.textBaseline = 'middle';
-                ctx.fillStyle = '#fff';
-                ctx.fillText(weapon.icon, iconX + weaponIconSize / 2, iconY + weaponIconSize / 2);
-
-                // Highlight selected weapon
-                if (index === currentWeaponIndex) {
-                    ctx.strokeStyle = '#00ff7f'; // Neon green highlight
-                    ctx.lineWidth = 3;
-                    ctx.strokeRect(iconX, iconY, weaponIconSize, weaponIconSize);
-                    ctx.shadowBlur = 10;
-                    ctx.shadowColor = '#00ff7f';
-                    ctx.strokeRect(iconX, iconY, weaponIconSize, weaponIconSize); // Draw again for stronger glow
-                    ctx.shadowBlur = 0; // Reset shadow
-                }
-            });
+            timerDisplay.textContent = `Time: ${minutes}:${seconds}`;
         }
 
 
@@ -1403,6 +1501,8 @@
 
         // Start the game loop when the window loads
         window.onload = function () {
+            setCanvasSize(); // Set initial canvas size and player/reticle positions
+            window.addEventListener('resize', setCanvasSize); // Add resize listener after initial setup
             resetGame(); // Initialize game state
             gameLoop();
         };
