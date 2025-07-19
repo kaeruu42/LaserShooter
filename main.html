@@ -125,7 +125,7 @@
 
         <!-- Game Over Screen -->
         <div id="gameOverScreen" class="game-over-screen" style="display: none;">
-            <p>GAME OVER!</p>
+            <p id="gameOverMessage">GAME OVER!</p>
             <p>Final Score: <span id="finalScore">0</span></p>
             <button id="restartButton" class="restart-button">Restart Game</button>
         </div>
@@ -141,9 +141,10 @@
         const gameOverScreen = document.getElementById('gameOverScreen');
         const finalScoreDisplay = document.getElementById('finalScore');
         const restartButton = document.getElementById('restartButton');
+        const gameOverMessage = document.getElementById('gameOverMessage');
 
         // Game state variables
-        let gameState = 'playing'; // 'playing' or 'gameOver'
+        let gameState = 'playing'; // 'playing', 'gameOver', or 'win'
         let score = 0;
 
         // Set canvas dimensions (responsive)
@@ -295,7 +296,7 @@
 
         // Enemy properties
         const enemies = [];
-        const enemySpawnInterval = 2000; // Spawn a new enemy every 2 seconds
+        let enemySpawnInterval = 2000; // Initial spawn interval (CHANGED TO LET)
         let lastEnemySpawnTime = 0;
         const enemyBaseSpeed = 1.5; // Base speed for enemies
         const enemyBaseSize = 25; // Base size for enemies
@@ -310,12 +311,25 @@
         const BONE_DEVIL_PAUSE_DURATION = 1000; // ms
         const BONE_DEVIL_CHARGE_SPEED_MULTIPLIER = 2.5; // How much faster it charges
 
+        // Difficulty Scaling Constants
+        const initialGameTime = 120; // 2 minutes in seconds
+        let gameTimer = initialGameTime;
+        let gameStartTime = 0; // To store performance.now() when game starts
+
+        const minSpawnInterval = 500; // Fastest spawn interval (at 0 seconds)
+        const maxSpawnInterval = 2000; // Slowest spawn interval (at initialGameTime)
+
+        const minGlobalSpeedMultiplier = 1; // Base speed multiplier (at initialGameTime)
+        const maxGlobalSpeedMultiplier = 2; // Max speed multiplier (at 0 seconds)
+        let currentGlobalSpeedMultiplier = minGlobalSpeedMultiplier; // (CHANGED TO LET)
+
+
         // Define different enemy types with their health, size, speed, points, and AI type
         const enemyTypes = [
-            { name: 'ghost', health: 3, sizeFactor: 1, speedFactor: 1, points: 10, aiType: 'ghost_wavy' }, // New AI type
+            { name: 'ghost', health: 3, sizeFactor: 1, speedFactor: 1, points: 10, aiType: 'ghost_wavy' },
             { name: 'zombie', health: 5, sizeFactor: 1.2, speedFactor: 0.8, points: 20, aiType: 'zombie_wander' },
-            { name: 'skull', health: 2, sizeFactor: 0.8, speedFactor: 1.5, points: 5, aiType: 'direct' }, // Remains direct
-            { name: 'boneDevil', health: 7, sizeFactor: 1.3, speedFactor: 1.1, points: 30, aiType: 'bone_devil_charge' }, // New AI type
+            { name: 'skull', health: 2, sizeFactor: 0.8, speedFactor: 1.5, points: 5, aiType: 'direct' },
+            { name: 'boneDevil', health: 7, sizeFactor: 1.3, speedFactor: 1.1, points: 30, aiType: 'bone_devil_charge' },
             { name: 'boneDragon', health: 10, sizeFactor: 1.5, speedFactor: 0.7, points: 50, aiType: 'dragon_evade' }
         ];
 
@@ -918,10 +932,10 @@
                 type: chosenType.name, // Store the type name for drawing
                 points: chosenType.points, // Store points for scoring
                 aiType: chosenType.aiType, // Store the AI type
+                originalSpeed: enemyBaseSpeed * chosenType.speedFactor, // Store original speed for dynamic scaling
                 // Status effects
                 isSlowed: false,
                 slowTimer: 0,
-                originalSpeed: enemyBaseSpeed * chosenType.speedFactor, // Store original speed
                 isBurning: false,
                 burnTimer: 0,
                 burnDamagePerTick: 0,
@@ -969,8 +983,9 @@
             powerupStatus.style.display = 'none';
             gameOverScreen.style.display = 'none';
             gameState = 'playing';
-            lastEnemySpawnTime = performance.now(); // Reset enemy spawn timer
-            powerup.lastCollectedTime = performance.now(); // Reset powerup spawn timer
+            gameTimer = initialGameTime; // Reset game timer
+            gameStartTime = performance.now(); // Reset game start time
+            gameOverMessage.textContent = 'GAME OVER!'; // Reset message
             // Spawn initial power-up after a short delay
             setTimeout(spawnPowerup, 1000);
         }
@@ -978,6 +993,25 @@
         // Function to update game state (movement, projectile positions, power-up, enemies)
         function update() {
             if (gameState !== 'playing') return; // Do not update if game is over
+
+            const currentTime = performance.now();
+            const elapsedTime = (currentTime - gameStartTime) / 1000; // Time in seconds
+            gameTimer = Math.max(0, initialGameTime - elapsedTime);
+
+            // Check for win condition
+            if (gameTimer <= 0) {
+                gameState = 'win';
+                gameOverMessage.textContent = 'YOU WIN!';
+                finalScoreDisplay.textContent = score;
+                gameOverScreen.style.display = 'flex';
+                return; // Stop updating game state
+            }
+
+            // Difficulty Scaling based on timer progress (0 to 1 as time goes from initial to 0)
+            const difficultyProgress = 1 - (gameTimer / initialGameTime);
+            enemySpawnInterval = maxSpawnInterval - (maxSpawnInterval - minSpawnInterval) * difficultyProgress;
+            currentGlobalSpeedMultiplier = minGlobalSpeedMultiplier + (maxGlobalSpeedMultiplier - minGlobalSpeedMultiplier) * difficultyProgress;
+
 
             // Update player position based on keys pressed
             if (keys.w) player.y -= player.speed;
@@ -1017,7 +1051,7 @@
             }
 
             // Power-up logic
-            if (!powerup.active && (performance.now() - powerup.lastCollectedTime > powerup.spawnDelay)) {
+            if (!powerup.active && (currentTime - powerup.lastCollectedTime > powerup.spawnDelay)) {
                 spawnPowerup(); // Spawn if not active and delay passed
             }
 
@@ -1027,12 +1061,11 @@
                 if (checkCollision(player, {x: powerup.x, y: powerup.y, size: powerup.size})) {
                     activateRapidFire(5000); // Activate for 5 seconds
                     powerup.active = false; // Deactivate power-up
-                    powerup.lastCollectedTime = performance.now(); // Record collection time
+                    powerup.lastCollectedTime = currentTime; // Record collection time
                 }
             }
 
-            // Enemy logic
-            const currentTime = performance.now();
+            // Enemy spawning logic
             if (currentTime - lastEnemySpawnTime > enemySpawnInterval) {
                 spawnEnemy();
                 lastEnemySpawnTime = currentTime;
@@ -1051,13 +1084,13 @@
 
                 let targetX = player.x;
                 let targetY = player.y;
-                let currentEnemySpeed = enemy.speed;
+                let effectiveEnemySpeed = enemy.originalSpeed * currentGlobalSpeedMultiplier; // Apply global speed multiplier
 
                 // AI Logic based on enemy.aiType
                 if (enemy.aiType === 'zombie_wander') {
                     // If target retention time is over or very close to the last known position, reacquire target
                     if (currentTime >= enemy.reacquireTargetTime ||
-                        (Math.abs(enemy.x - enemy.lastKnownPlayerX) < enemy.speed && Math.abs(enemy.y - enemy.lastKnownPlayerY) < enemy.speed)) {
+                        (Math.abs(enemy.x - enemy.lastKnownPlayerX) < effectiveEnemySpeed && Math.abs(enemy.y - enemy.lastKnownPlayerY) < effectiveEnemySpeed)) {
                         enemy.lastKnownPlayerX = player.x;
                         enemy.lastKnownPlayerY = player.y;
                         enemy.reacquireTargetTime = currentTime + ZOMBIE_TARGET_RETENTION_DURATION;
@@ -1096,8 +1129,8 @@
                     }
                     const move_magnitude = Math.sqrt(move_dx * move_dx + move_dy * move_dy);
                     if (move_magnitude > 0) {
-                        targetX = enemy.x + (move_dx / move_magnitude) * currentEnemySpeed;
-                        targetY = enemy.y + (move_dy / move_magnitude) * currentEnemySpeed;
+                        targetX = enemy.x + (move_dx / move_magnitude) * effectiveEnemySpeed;
+                        targetY = enemy.y + (move_dy / move_magnitude) * effectiveEnemySpeed;
                     } else {
                         // Fallback if evasion logic results in zero movement (unlikely but safe)
                         targetX = player.x;
@@ -1125,8 +1158,8 @@
                     const combined_distance = Math.sqrt(combined_dx * combined_dx + combined_dy * combined_dy);
 
                     if (combined_distance > 0) {
-                        enemy.x += (combined_dx / combined_distance) * currentEnemySpeed;
-                        enemy.y += (combined_dy / combined_distance) * currentEnemySpeed;
+                        enemy.x += (combined_dx / combined_distance) * effectiveEnemySpeed;
+                        enemy.y += (combined_dy / combined_distance) * effectiveEnemySpeed;
                     }
 
                 } else if (enemy.aiType === 'bone_devil_charge') {
@@ -1138,8 +1171,8 @@
                             const dy = player.y - enemy.y;
                             const distance = Math.sqrt(dx * dx + dy * dy);
                             if (distance > 0) {
-                                enemy.x += (dx / distance) * currentEnemySpeed;
-                                enemy.y += (dy / distance) * currentEnemySpeed;
+                                enemy.x += (dx / distance) * effectiveEnemySpeed;
+                                enemy.y += (dy / distance) * effectiveEnemySpeed;
                             }
 
                             // Transition to pausing after a certain distance or time, or randomly
@@ -1165,8 +1198,8 @@
                             const charge_distance = Math.sqrt(charge_dx * charge_dx + charge_dy * charge_dy);
 
                             if (charge_distance > 0) {
-                                enemy.x += (charge_dx / charge_distance) * (currentEnemySpeed * BONE_DEVIL_CHARGE_SPEED_MULTIPLIER);
-                                enemy.y += (charge_dy / charge_distance) * (currentEnemySpeed * BONE_DEVIL_CHARGE_SPEED_MULTIPLIER);
+                                enemy.x += (charge_dx / charge_distance) * (effectiveEnemySpeed * BONE_DEVIL_CHARGE_SPEED_MULTIPLIER);
+                                enemy.y += (charge_dy / charge_distance) * (effectiveEnemySpeed * BONE_DEVIL_CHARGE_SPEED_MULTIPLIER);
                             }
 
                             // Transition back to moving after charge duration or if target reached
@@ -1181,8 +1214,8 @@
                     const distance = Math.sqrt(dx * dx + dy * dy);
 
                     if (distance > 0) {
-                        enemy.x += (dx / distance) * currentEnemySpeed;
-                        enemy.y += (dy / distance) * currentEnemySpeed;
+                        enemy.x += (dx / distance) * effectiveEnemySpeed;
+                        enemy.y += (dy / distance) * effectiveEnemySpeed;
                     }
                 }
 
@@ -1315,12 +1348,22 @@
             ctx.textBaseline = 'top';
             ctx.fillText(`Score: ${score}`, canvas.width - 20, 20);
 
+            // Timer
+            const minutes = Math.floor(gameTimer / 60);
+            const seconds = Math.floor(gameTimer % 60).toString().padStart(2, '0');
+            ctx.fillStyle = '#fff';
+            ctx.font = '24px Inter';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'top';
+            ctx.fillText(`Time: ${minutes}:${seconds}`, canvas.width / 2, 20);
+
+
             // Weapon Selector
             const weaponIconSize = 40;
             const weaponIconPadding = 10;
             const totalWeaponWidth = (weaponIconSize + weaponIconPadding) * weapons.length - weaponIconPadding;
             const startX = (canvas.width / 2) - (totalWeaponWidth / 2);
-            const startY = 20; // Position below score/health
+            const startY = 60; // Position below timer/score
 
             weapons.forEach((weapon, index) => {
                 const iconX = startX + index * (weaponIconSize + weaponIconPadding);
