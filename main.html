@@ -58,6 +58,54 @@
             font-weight: bold;
             text-shadow: 0 0 8px rgba(0, 255, 127, 0.6);
         }
+
+        .game-over-screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.8); /* Semi-transparent black overlay */
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            color: #e0e0e0;
+            font-size: 2em;
+            font-weight: bold;
+            text-shadow: 0 0 15px rgba(255, 0, 0, 0.7); /* Red glow for game over */
+            border-radius: 15px; /* Match canvas border radius */
+            z-index: 10; /* Ensure it's on top */
+        }
+
+        .game-over-screen p {
+            margin: 10px 0;
+        }
+
+        .restart-button {
+            background-color: #00bfff; /* Neon blue */
+            color: #1a1a2e;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 10px;
+            font-size: 1.2em;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background-color 0.3s ease, transform 0.2s ease, box-shadow 0.3s ease;
+            box-shadow: 0 5px 15px rgba(0, 191, 255, 0.4);
+            margin-top: 20px;
+        }
+
+        .restart-button:hover {
+            background-color: #00e0ff; /* Lighter blue on hover */
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(0, 191, 255, 0.6);
+        }
+
+        .restart-button:active {
+            transform: translateY(0);
+            box-shadow: 0 3px 10px rgba(0, 191, 255, 0.3);
+        }
     </style>
 </head>
 <body>
@@ -73,6 +121,13 @@
         <div id="powerupStatus" class="powerup-status" style="display: none;">
             RAPID FIRE ACTIVE!
         </div>
+
+        <!-- Game Over Screen -->
+        <div id="gameOverScreen" class="game-over-screen" style="display: none;">
+            <p>GAME OVER!</p>
+            <p>Final Score: <span id="finalScore">0</span></p>
+            <button id="restartButton" class="restart-button">Restart Game</button>
+        </div>
     </div>
 
     <script>
@@ -80,8 +135,15 @@
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
 
-        // Get the power-up status element
+        // Get HUD elements
         const powerupStatus = document.getElementById('powerupStatus');
+        const gameOverScreen = document.getElementById('gameOverScreen');
+        const finalScoreDisplay = document.getElementById('finalScore');
+        const restartButton = document.getElementById('restartButton');
+
+        // Game state variables
+        let gameState = 'playing'; // 'playing' or 'gameOver'
+        let score = 0;
 
         // Set canvas dimensions (responsive)
         const setCanvasSize = () => {
@@ -97,7 +159,9 @@
             y: canvas.height / 2,
             size: 30, // Base size for the frog
             speed: 5,
-            color: '#32CD32' // Lime Green for the frog
+            color: '#32CD32', // Lime Green for the frog
+            health: 100,
+            maxHealth: 100
         };
 
         // Reticle properties
@@ -134,6 +198,46 @@
             spawnDelay: 5000, // 5 seconds before next spawn
             lastCollectedTime: 0
         };
+
+        // Enemy properties
+        const enemies = [];
+        const enemySpawnInterval = 2000; // Spawn a new enemy every 2 seconds
+        let lastEnemySpawnTime = 0;
+        const enemyBaseSpeed = 1.5; // Base speed for enemies
+        const enemyBaseSize = 25; // Base size for enemies
+        const playerDamagePerCollision = 20; // Damage player takes per enemy collision
+
+        // Define different enemy types with their health, size, speed, and points
+        const enemyTypes = [
+            { name: 'ghost', health: 3, sizeFactor: 1, speedFactor: 1, points: 10 },
+            { name: 'zombie', health: 5, sizeFactor: 1.2, speedFactor: 0.8, points: 20 }, // Slower, tankier
+            { name: 'skull', health: 2, sizeFactor: 0.8, speedFactor: 1.5, points: 5 }, // Faster, weaker
+            { name: 'boneDevil', health: 7, sizeFactor: 1.3, speedFactor: 1.1, points: 30 },
+            { name: 'boneDragon', health: 10, sizeFactor: 1.5, speedFactor: 0.7, points: 50 } // Slowest, strongest
+        ];
+
+        // Palette of colors for enemies
+        const enemyColors = [
+            '#b0c4de', // Light steel blue
+            '#a9a9a9', // Dark gray
+            '#808080', // Gray
+            '#696969', // Dim gray
+            '#d3d3d3', // Light gray
+            '#f0f8ff', // Alice blue (almost white, for ghostly)
+            '#add8e6', // Light blue
+            '#90ee90', // Light green (decaying)
+            '#ffb6c1', // Light pink (flesh, but desaturated)
+            '#deb887',  // Burly wood (bone-like)
+            '#c0c0c0', // Silver
+            '#708090', // Slate Gray
+            '#4682b4', // Steel Blue
+            '#b22222'  // Firebrick
+        ];
+
+        // Function to get a random color from the palette
+        function getRandomColor() {
+            return enemyColors[Math.floor(Math.random() * enemyColors.length)];
+        }
 
         // Keyboard input state
         const keys = {
@@ -236,6 +340,11 @@
             mouse.isMouseDown = false;
         });
 
+        // Restart button listener
+        restartButton.addEventListener('click', () => {
+            resetGame();
+        });
+
         // --- Game Functions ---
 
         // Function to draw the player (frog with moving eyes!)
@@ -330,6 +439,222 @@
             }
         }
 
+        // --- Drawing functions for different enemy types ---
+
+        function drawGhostShape(ctx, enemy) {
+            const bodyWidth = enemy.size * 1.5;
+            const bodyHeight = enemy.size * 1.8;
+            const bottomCurveRadius = enemy.size * 0.5;
+
+            ctx.beginPath();
+            // Top rectangle part
+            ctx.moveTo(enemy.x - bodyWidth / 2, enemy.y - bodyHeight / 2);
+            ctx.lineTo(enemy.x + bodyWidth / 2, enemy.y - bodyHeight / 2);
+            ctx.lineTo(enemy.x + bodyWidth / 2, enemy.y + bodyHeight / 2 - bottomCurveRadius);
+
+            // Bottom curves (scallops)
+            const numScallops = 3;
+            const scallopWidth = bodyWidth / numScallops;
+            for (let i = 0; i < numScallops; i++) {
+                const startX = enemy.x - bodyWidth / 2 + i * scallopWidth;
+                ctx.arc(startX + scallopWidth / 2, enemy.y + bodyHeight / 2 - bottomCurveRadius, scallopWidth / 2, 0, Math.PI, true);
+            }
+            ctx.lineTo(enemy.x - bodyWidth / 2, enemy.y + bodyHeight / 2 - bottomCurveRadius);
+            ctx.closePath();
+            ctx.fill();
+
+            // Draw ghost eyes (simple circles)
+            ctx.fillStyle = 'black';
+            const eyeRadius = enemy.size * 0.2;
+            ctx.beginPath();
+            ctx.arc(enemy.x - enemy.size * 0.4, enemy.y - enemy.size * 0.3, eyeRadius, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.arc(enemy.x + enemy.size * 0.4, enemy.y - enemy.size * 0.3, eyeRadius, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        function drawZombieShape(ctx, enemy) {
+            const bodyWidth = enemy.size * 1.2;
+            const bodyHeight = enemy.size * 1.8;
+            const headSize = enemy.size * 0.8;
+
+            // Body
+            ctx.beginPath();
+            ctx.rect(enemy.x - bodyWidth / 2, enemy.y - bodyHeight / 2, bodyWidth, bodyHeight);
+            ctx.fill();
+
+            // Head
+            ctx.beginPath();
+            ctx.arc(enemy.x, enemy.y - bodyHeight / 2 - headSize / 2, headSize / 2, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Eyes
+            ctx.fillStyle = 'darkred';
+            const eyeRadius = headSize * 0.15;
+            ctx.beginPath();
+            ctx.arc(enemy.x - headSize * 0.25, enemy.y - bodyHeight / 2 - headSize / 2 - eyeRadius, eyeRadius, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.arc(enemy.x + headSize * 0.25, enemy.y - bodyHeight / 2 - headSize / 2 - eyeRadius, eyeRadius, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Mouth (simple line)
+            ctx.strokeStyle = 'black';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(enemy.x - headSize * 0.2, enemy.y - bodyHeight / 2 - headSize / 2 + headSize * 0.2);
+            ctx.lineTo(enemy.x + headSize * 0.2, enemy.y - bodyHeight / 2 - headSize / 2 + headSize * 0.2);
+            ctx.stroke();
+        }
+
+        function drawSkullShape(ctx, enemy) {
+            const skullRadius = enemy.size * 0.8;
+            const jawHeight = enemy.size * 0.4;
+
+            // Skull head
+            ctx.beginPath();
+            ctx.arc(enemy.x, enemy.y - jawHeight / 2, skullRadius, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Jaw (simple rectangle)
+            ctx.beginPath();
+            ctx.rect(enemy.x - skullRadius * 0.7, enemy.y - jawHeight / 2 + skullRadius * 0.8, skullRadius * 1.4, jawHeight);
+            ctx.fill();
+
+            // Eye sockets
+            ctx.fillStyle = 'black';
+            const eyeSocketRadius = skullRadius * 0.25;
+            ctx.beginPath();
+            ctx.arc(enemy.x - skullRadius * 0.35, enemy.y - jawHeight / 2 - skullRadius * 0.2, eyeSocketRadius, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.arc(enemy.x + skullRadius * 0.35, enemy.y - jawHeight / 2 - skullRadius * 0.2, eyeSocketRadius, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Nose hole (triangle)
+            ctx.beginPath();
+            ctx.moveTo(enemy.x, enemy.y - jawHeight / 2 + skullRadius * 0.2);
+            ctx.lineTo(enemy.x - skullRadius * 0.1, enemy.y - jawHeight / 2 + skullRadius * 0.4);
+            ctx.lineTo(enemy.x + skullRadius * 0.1, enemy.y - jawHeight / 2 + skullRadius * 0.4);
+            ctx.closePath();
+            ctx.fill();
+        }
+
+        function drawBoneDevilShape(ctx, enemy) {
+            const bodyWidth = enemy.size * 1.6;
+            const bodyHeight = enemy.size * 1.5;
+            const hornLength = enemy.size * 0.7;
+
+            // Main body (trapezoid/diamond-like)
+            ctx.beginPath();
+            ctx.moveTo(enemy.x, enemy.y - bodyHeight / 2); // Top point
+            ctx.lineTo(enemy.x + bodyWidth / 2, enemy.y); // Right point
+            ctx.lineTo(enemy.x, enemy.y + bodyHeight / 2); // Bottom point
+            ctx.lineTo(enemy.x - bodyWidth / 2, enemy.y); // Left point
+            ctx.closePath();
+            ctx.fill();
+
+            // Horns
+            ctx.beginPath();
+            ctx.moveTo(enemy.x - bodyWidth * 0.2, enemy.y - bodyHeight / 2);
+            ctx.lineTo(enemy.x - bodyWidth * 0.2 - hornLength * 0.5, enemy.y - bodyHeight / 2 - hornLength);
+            ctx.lineTo(enemy.x - bodyWidth * 0.2 + hornLength * 0.2, enemy.y - bodyHeight / 2);
+            ctx.closePath();
+            ctx.fill();
+
+            ctx.beginPath();
+            ctx.moveTo(enemy.x + bodyWidth * 0.2, enemy.y - bodyHeight / 2);
+            ctx.lineTo(enemy.x + bodyWidth * 0.2 + hornLength * 0.5, enemy.y - bodyHeight / 2 - hornLength);
+            ctx.lineTo(enemy.x + bodyWidth * 0.2 - hornLength * 0.2, enemy.y - bodyHeight / 2);
+            ctx.closePath();
+            ctx.fill();
+
+            // Eyes
+            ctx.fillStyle = 'red'; // Fiery eyes
+            const eyeRadius = enemy.size * 0.15;
+            ctx.beginPath();
+            ctx.arc(enemy.x - enemy.size * 0.3, enemy.y - enemy.size * 0.3, eyeRadius, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.arc(enemy.x + enemy.size * 0.3, enemy.y - enemy.size * 0.3, eyeRadius, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        function drawBoneDragonShape(ctx, enemy) {
+            const bodyLength = enemy.size * 3;
+            const bodyHeight = enemy.size * 0.8;
+            const headRadius = enemy.size * 0.6;
+
+            // Body (elongated ellipse)
+            ctx.beginPath();
+            ctx.ellipse(enemy.x, enemy.y, bodyLength / 2, bodyHeight / 2, 0, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Head (at one end of the body)
+            ctx.beginPath();
+            ctx.arc(enemy.x + bodyLength / 2 - headRadius * 0.5, enemy.y - headRadius * 0.2, headRadius, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Spikes along the back
+            ctx.fillStyle = enemy.color; // Use body color for spikes
+            const numSpikes = 5;
+            for (let i = 0; i < numSpikes; i++) {
+                const spikeX = enemy.x - bodyLength / 2 + (i + 0.5) * (bodyLength / numSpikes);
+                const spikeY = enemy.y - bodyHeight / 2;
+                const spikeHeight = enemy.size * 0.4;
+                const spikeWidth = enemy.size * 0.2;
+
+                ctx.beginPath();
+                ctx.moveTo(spikeX - spikeWidth / 2, spikeY);
+                ctx.lineTo(spikeX + spikeWidth / 2, spikeY);
+                ctx.lineTo(spikeX, spikeY - spikeHeight);
+                ctx.closePath();
+                ctx.fill();
+            }
+
+            // Eyes
+            ctx.fillStyle = 'darkred';
+            const eyeRadius = headRadius * 0.15;
+            ctx.beginPath();
+            ctx.arc(enemy.x + bodyLength / 2 - headRadius * 0.5 - headRadius * 0.2, enemy.y - headRadius * 0.2 - eyeRadius, eyeRadius, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.arc(enemy.x + bodyLength / 2 - headRadius * 0.5 + headRadius * 0.2, enemy.y - headRadius * 0.2 - eyeRadius, eyeRadius, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        // Main function to draw an enemy based on its type
+        function drawEnemy(enemy) {
+            ctx.fillStyle = enemy.color;
+            ctx.globalAlpha = 1; // Ensure full opacity for enemies
+
+            switch (enemy.type) {
+                case 'ghost':
+                    drawGhostShape(ctx, enemy);
+                    break;
+                case 'zombie':
+                    drawZombieShape(ctx, enemy);
+                    break;
+                case 'skull':
+                    drawSkullShape(ctx, enemy);
+                    break;
+                case 'boneDevil':
+                    drawBoneDevilShape(ctx, enemy);
+                    break;
+                case 'boneDragon':
+                    drawBoneDragonShape(ctx, enemy);
+                    break;
+                default:
+                    // Fallback: draw a simple circle if type is unknown
+                    ctx.beginPath();
+                    ctx.arc(enemy.x, enemy.y, enemy.size, 0, Math.PI * 2);
+                    ctx.fill();
+                    break;
+            }
+        }
+
+
         // Function to shoot a laser
         function shootLaser() {
             const currentTime = performance.now();
@@ -388,6 +713,46 @@
             }
         }
 
+        // Function to spawn an enemy from off-screen
+        function spawnEnemy() {
+            const side = Math.floor(Math.random() * 4); // 0: top, 1: right, 2: bottom, 3: left
+            let x, y;
+
+            const chosenType = enemyTypes[Math.floor(Math.random() * enemyTypes.length)];
+            // Adjust spawn position based on the actual size of the enemy to ensure it's fully off-screen
+            const spawnOffset = enemyBaseSize * chosenType.sizeFactor * 2; // Use actual size for offset
+
+            switch (side) {
+                case 0: // Top
+                    x = Math.random() * canvas.width;
+                    y = -spawnOffset;
+                    break;
+                case 1: // Right
+                    x = canvas.width + spawnOffset;
+                    y = Math.random() * canvas.height;
+                    break;
+                case 2: // Bottom
+                    x = Math.random() * canvas.width;
+                    y = canvas.height + spawnOffset;
+                    break;
+                case 3: // Left
+                    x = -spawnOffset;
+                    y = Math.random() * canvas.height;
+                    break;
+            }
+
+            enemies.push({
+                x: x,
+                y: y,
+                size: enemyBaseSize * chosenType.sizeFactor, // Apply size factor
+                color: getRandomColor(),
+                speed: enemyBaseSpeed * chosenType.speedFactor, // Apply speed factor
+                health: chosenType.health,
+                type: chosenType.name, // Store the type name for drawing
+                points: chosenType.points // Store points for scoring
+            });
+        }
+
         // Function to check for collision between two circles
         function checkCollision(obj1, obj2) {
             const dx = obj1.x - obj2.x;
@@ -396,8 +761,31 @@
             return distance < (obj1.size + obj2.size); // Collision if distance is less than sum of radii
         }
 
-        // Function to update game state (movement, laser positions, power-up)
+        // Function to reset game state for a new game
+        function resetGame() {
+            player.health = player.maxHealth;
+            player.x = canvas.width / 2;
+            player.y = canvas.height / 2;
+            score = 0;
+            enemies.length = 0; // Clear all enemies
+            lasers.length = 0; // Clear all lasers
+            powerup.active = false; // Deactivate power-up
+            currentFireRate = baseFireRate; // Reset fire rate
+            rapidFireActive = false;
+            if (rapidFireTimeoutId) clearTimeout(rapidFireTimeoutId);
+            powerupStatus.style.display = 'none';
+            gameOverScreen.style.display = 'none';
+            gameState = 'playing';
+            lastEnemySpawnTime = performance.now(); // Reset enemy spawn timer
+            powerup.lastCollectedTime = performance.now(); // Reset powerup spawn timer
+            // Spawn initial power-up after a short delay
+            setTimeout(spawnPowerup, 1000);
+        }
+
+        // Function to update game state (movement, laser positions, power-up, enemies)
         function update() {
+            if (gameState !== 'playing') return; // Do not update if game is over
+
             // Update player position based on keys pressed
             if (keys.w) player.y -= player.speed;
             if (keys.s) player.y += player.speed;
@@ -421,7 +809,7 @@
                 laser.y += laser.dirY * laserSpeed;
 
                 // Remove lasers that are off-screen
-                if (laser.x < 0 || laser.x > canvas.width || laser.y < 0 || laser.y > canvas.height) {
+                if (laser.x < -laser.size || laser.x > canvas.width + laser.size || laser.y < -laser.size || laser.y > canvas.height + laser.size) {
                     lasers.splice(i, 1);
                 }
             }
@@ -438,6 +826,55 @@
                     activateRapidFire(5000); // Activate for 5 seconds
                     powerup.active = false; // Deactivate power-up
                     powerup.lastCollectedTime = performance.now(); // Record collection time
+                }
+            }
+
+            // Enemy logic
+            const currentTime = performance.now();
+            if (currentTime - lastEnemySpawnTime > enemySpawnInterval) {
+                spawnEnemy();
+                lastEnemySpawnTime = currentTime;
+            }
+
+            for (let i = enemies.length - 1; i >= 0; i--) {
+                const enemy = enemies[i];
+
+                // Move enemy towards the player
+                const dx = player.x - enemy.x;
+                const dy = player.y - enemy.y;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+
+                if (distance > 0) {
+                    enemy.x += (dx / distance) * enemy.speed; // Use enemy's individual speed
+                    enemy.y += (dy / distance) * enemy.speed; // Use enemy's individual speed
+                }
+
+                // Check for player-enemy collisions
+                if (checkCollision(player, enemy)) {
+                    player.health -= playerDamagePerCollision; // Player takes damage
+                    enemies.splice(i, 1); // Remove the enemy after collision
+                    if (player.health <= 0) {
+                        player.health = 0; // Cap health at 0
+                        gameState = 'gameOver';
+                        finalScoreDisplay.textContent = score;
+                        gameOverScreen.style.display = 'flex'; // Show game over screen
+                    }
+                    continue; // Skip laser collision check for this enemy as it's removed
+                }
+
+                // Check for laser-enemy collisions
+                for (let j = lasers.length - 1; j >= 0; j--) {
+                    const laser = lasers[j];
+                    // Collision check considers the enemy's actual size
+                    if (checkCollision(laser, enemy)) {
+                        enemy.health--; // Reduce enemy health
+                        lasers.splice(j, 1); // Remove the laser
+                        if (enemy.health <= 0) {
+                            score += enemy.points; // Add points to score
+                            enemies.splice(i, 1); // Remove the enemy if health is 0
+                            break; // Break inner loop as enemy is removed
+                        }
+                    }
                 }
             }
         }
@@ -463,7 +900,53 @@
 
             // Draw power-up
             drawPowerup();
+
+            // Draw enemies
+            enemies.forEach(enemy => {
+                drawEnemy(enemy); // Call the main drawEnemy function
+            });
+
+            // Draw HUD
+            drawHUD();
         }
+
+        // Function to draw the HUD (Health Bar and Score)
+        function drawHUD() {
+            // Health Bar
+            const healthBarWidth = 200;
+            const healthBarHeight = 20;
+            const healthBarX = 20;
+            const healthBarY = 20;
+
+            // Background of health bar
+            ctx.fillStyle = '#555'; // Grey background
+            ctx.fillRect(healthBarX, healthBarY, healthBarWidth, healthBarHeight);
+
+            // Current health
+            const currentHealthWidth = (player.health / player.maxHealth) * healthBarWidth;
+            ctx.fillStyle = '#FF0000'; // Red for health
+            ctx.fillRect(healthBarX, healthBarY, currentHealthWidth, healthBarHeight);
+
+            // Health bar border
+            ctx.strokeStyle = '#fff';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(healthBarX, healthBarY, healthBarWidth, healthBarHeight);
+
+            // Health text
+            ctx.fillStyle = '#fff';
+            ctx.font = '16px Inter';
+            ctx.textAlign = 'left';
+            ctx.textBaseline = 'top';
+            ctx.fillText(`Health: ${player.health}/${player.maxHealth}`, healthBarX, healthBarY + healthBarHeight + 5);
+
+            // Score
+            ctx.fillStyle = '#fff';
+            ctx.font = '24px Inter';
+            ctx.textAlign = 'right';
+            ctx.textBaseline = 'top';
+            ctx.fillText(`Score: ${score}`, canvas.width - 20, 20);
+        }
+
 
         // Main game loop
         function gameLoop() {
@@ -474,8 +957,7 @@
 
         // Start the game loop when the window loads
         window.onload = function () {
-            // Initial spawn of power-up after a short delay
-            setTimeout(spawnPowerup, 1000);
+            resetGame(); // Initialize game state
             gameLoop();
         };
     </script>
